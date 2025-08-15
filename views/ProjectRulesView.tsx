@@ -6,18 +6,38 @@ import { DocumentIcon } from '../components/icons';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { Textarea } from '../components/ui/Textarea';
 import { Button } from '../components/ui/Button';
+import ExamplePrompts from '../components/ExamplePrompts';
+import MarkdownRenderer from '../components/MarkdownRenderer';
+import { cacheService } from '../services/cache.service';
+import { useSettings } from '../context/SettingsContext';
 
 const ProjectRulesView: React.FC = () => {
-  const [request, setRequest] = useState('Create a standard CONTRIBUTING.md file for a new open source project.');
+  const [request, setRequest] = useState('');
   const [generatedDoc, setGeneratedDoc] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { fileTree } = useContext(GithubContext);
+  const { fileTree, repoUrl } = useContext(GithubContext);
+  const { settings } = useSettings();
 
   const handleGenerate = async () => {
     if (!request.trim()) return;
+
+    const cacheKey = `project-rules::${repoUrl}::${request}`;
+    if (settings.isCacheEnabled) {
+        const hasCache = await cacheService.has(cacheKey);
+        if (hasCache) {
+            console.log(`ProjectRulesView: Loading doc from cache for key: ${cacheKey}`);
+            const cachedDoc = await cacheService.get<string>(cacheKey);
+            if (cachedDoc) {
+                setGeneratedDoc(cachedDoc);
+                return;
+            }
+        }
+    }
+
     setIsLoading(true);
     setGeneratedDoc('');
     try {
+        console.log(`ProjectRulesView: Generating document for request: "${request}" (no cache)`);
         const { stream } = await supervisor.handleRequest(request, fileTree, { setActiveView: () => {} }, ProjectRulesAgent.id);
         
         let content = '';
@@ -27,8 +47,13 @@ const ProjectRulesView: React.FC = () => {
                 setGeneratedDoc(content);
             }
         }
+
+        if (settings.isCacheEnabled) {
+          console.log(`ProjectRulesView: Saving doc to cache with key: ${cacheKey}`);
+          await cacheService.set(cacheKey, content);
+        }
     } catch (error) {
-        console.error("Error generating project rules:", error);
+        console.error("ProjectRulesView: Error generating project rules:", error);
         setGeneratedDoc("Sorry, an error occurred while generating the document.");
     } finally {
         setIsLoading(false);
@@ -38,6 +63,13 @@ const ProjectRulesView: React.FC = () => {
   const handleCopy = () => {
     navigator.clipboard.writeText(generatedDoc);
   };
+
+  const examplePrompts = [
+    "A standard Code of Conduct based on the Contributor Covenant.",
+    "Contribution guidelines for a JavaScript project using Prettier and ESLint.",
+    "A security policy (SECURITY.md) explaining how to report vulnerabilities.",
+    "A simple governance model for a small open-source project."
+  ];
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
@@ -53,6 +85,7 @@ const ProjectRulesView: React.FC = () => {
                 <CardDescription>What kind of document do you need?</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col gap-4">
+                 <ExamplePrompts prompts={examplePrompts} onSelectPrompt={setRequest} />
                 <Textarea
                     value={request}
                     onChange={(e) => setRequest(e.target.value)}
@@ -72,7 +105,7 @@ const ProjectRulesView: React.FC = () => {
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto">
             {generatedDoc ? (
-              <pre className="whitespace-pre-wrap font-mono text-sm text-foreground">{generatedDoc}</pre>
+              <MarkdownRenderer content={generatedDoc} />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <div className="text-center">

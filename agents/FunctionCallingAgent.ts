@@ -1,4 +1,3 @@
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Type, Part } from '@google/genai';
@@ -6,11 +5,11 @@ import { Type, Part } from '@google/genai';
 // CRITICAL FIX: To avoid a circular dependency runtime error (this file -> supervisor -> agentService -> this file),
 // we define the agent and view names statically here.
 const AGENT_NAMES = [
-    "ChatAgent", "ReadmeAgent", "ProjectRulesAgent", "ResearchAgent", "RefinerAgent", 
-    "IconPromptAgent", "CodeExecutionAgent", "StructuredOutputAgent", "UrlAgent", "FunctionCallingAgent"
+    "ChatAgent", "PlannerAgent", "ReadmeAgent", "ProjectRulesAgent", "ResearchAgent", "RefinerAgent", 
+    "IconPromptAgent", "CodeExecutionAgent", "StructuredOutputAgent", "UrlAgent", "FunctionCallingAgent", "CodeGraphAgent"
 ];
 
-const VIEW_NAMES = ['chat', 'project-rules', 'readme-generator', 'icon-generator', 'logo-generator', 'github-inspector', 'history', 'settings'];
+const VIEW_NAMES = ['chat', 'project-rules', 'readme-generator', 'icon-generator', 'logo-generator', 'github-inspector', 'code-graph', 'history', 'settings'];
 
 const navigateToView = {
     name: 'navigateToView',
@@ -73,12 +72,19 @@ export const FunctionCallingAgent: Agent = {
         });
 
         for await (const chunk of stream) {
-            for (const part of chunk.candidates[0].content.parts) {
+            const candidate = chunk.candidates?.[0];
+            if (!candidate) continue;
+
+            for (const part of candidate.content.parts) {
                 if (part.functionCall) {
-                    yield { type: 'functionCall', functionCall: part.functionCall };
+                    yield { type: 'functionCall', functionCall: part.functionCall, agentName: this.name };
                 } else if (part.text) {
-                    yield { type: 'content', content: part.text };
+                    yield { type: 'content', content: part.text, agentName: this.name };
                 }
+            }
+
+            if (candidate.groundingMetadata) {
+                yield { type: 'metadata', metadata: { groundingMetadata: candidate.groundingMetadata }, agentName: this.name };
             }
         }
     }

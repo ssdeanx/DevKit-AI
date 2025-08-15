@@ -11,6 +11,7 @@ import LogoGeneratorView from './views/LogoGeneratorView';
 import GithubInspectorView from './views/GithubInspectorView';
 import HistoryView from './views/HistoryView';
 import { SettingsProvider } from './context/SettingsContext';
+import CodeGraphView from './views/CodeGraphView';
 
 export type ViewName = 
   | 'chat' 
@@ -18,9 +19,18 @@ export type ViewName =
   | 'readme-generator' 
   | 'icon-generator' 
   | 'logo-generator' 
-  | 'github-inspector' 
+  | 'github-inspector'
+  | 'code-graph'
   | 'history' 
   | 'settings';
+
+export interface WorkflowStep {
+    step: number;
+    agent: string;
+    task: string;
+    status: 'pending' | 'in-progress' | 'completed';
+    output?: string;
+}
 
 const App: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewName>('chat');
@@ -52,6 +62,8 @@ const App: React.FC = () => {
         return <LogoGeneratorView />;
       case 'github-inspector':
         return <GithubInspectorView />;
+      case 'code-graph':
+        return <CodeGraphView />;
       case 'history':
         return <HistoryView />;
       default:

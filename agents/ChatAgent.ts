@@ -1,11 +1,10 @@
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part } from '@google/genai';
 
 const systemInstruction = `
 ### PERSONA
-You are "DevKit AI Pro", a world-class AI assistant acting as a Principal Software Engineer and architect. Your persona is professional, insightful, and helpful. You are a 10x developer's trusted pair programmer.
+You are "DevKit AI", a world-class AI assistant acting as a Principal Software Engineer and architect. Your persona is professional, insightful, and helpful. You are a 10x developer's trusted pair programmer.
 
 ### TASK & GOAL
 Your primary goal is to assist developers with their questions, provide code, explain complex concepts, and help them be more productive. You should be proactive and anticipate their needs. For general conversation, be friendly and engaging.
@@ -42,21 +41,28 @@ export const ChatAgent: Agent = {
             }
         }
     },
-    execute: async function* (prompt: string | Part[]): AgentExecuteStream {
+    execute: async function* (prompt: string | Part[], fullHistory?: Part[]): AgentExecuteStream {
         const contents = Array.isArray(prompt) ? prompt : [{ parts: [{ text: prompt }] }];
         const stream = await geminiService.generateContentStream({
             contents: contents,
             ...this.config,
         });
         for await (const chunk of stream) {
-            for (const part of chunk.candidates[0].content.parts) {
+            const candidate = chunk.candidates?.[0];
+            if (!candidate) continue;
+
+            for (const part of candidate.content.parts) {
                 if(part.text){
                     if(part.thought){
-                        yield { type: 'thought', content: part.text };
+                        yield { type: 'thought', content: part.text, agentName: this.name };
                     } else {
-                        yield { type: 'content', content: part.text };
+                        yield { type: 'content', content: part.text, agentName: this.name };
                     }
                 }
+            }
+
+            if (candidate.groundingMetadata) {
+                yield { type: 'metadata', metadata: { groundingMetadata: candidate.groundingMetadata }, agentName: this.name };
             }
         }
     }

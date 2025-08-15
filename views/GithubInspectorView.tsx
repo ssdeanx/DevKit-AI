@@ -25,7 +25,7 @@ const FileTree: React.FC<{ tree: FileNode[] }> = ({ tree }) => {
 
 
 const GithubInspectorView: React.FC = () => {
-    const [urlInput, setUrlInput] = useState('https://github.com/google/generative-ai-docs');
+    const [urlInput, setUrlInput] = useState('https://github.com/ssdeanx/DevKit-AI');
     const [apiKey, setApiKey] = useState(() => localStorage.getItem(GITHUB_API_KEY_STORAGE_KEY) || '');
     const { repoUrl, fileTree, isLoading, error, fetchRepo } = useContext(GithubContext);
 

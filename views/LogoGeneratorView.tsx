@@ -8,6 +8,7 @@ import { Label } from '../components/ui/Label';
 import { Slider } from '../components/ui/Slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select';
 import { convertPngToSvg } from '../lib/image';
+import ExamplePrompts from '../components/ExamplePrompts';
 
 
 type AspectRatio = "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
@@ -25,6 +26,7 @@ const LogoGeneratorView: React.FC = () => {
       setError("Please enter a prompt.");
       return;
     }
+    console.log(`LogoGeneratorView: Generating ${numberOfImages} image(s) with aspect ratio ${aspectRatio} for prompt: "${prompt}"`);
     setIsLoading(true);
     setError(null);
     setGeneratedImages([]);
@@ -36,7 +38,7 @@ const LogoGeneratorView: React.FC = () => {
       });
       setGeneratedImages(images.map(img => img.image.imageBytes));
     } catch (e) {
-      console.error("Image generation failed:", e);
+      console.error("LogoGeneratorView: Image generation failed:", e);
       setError("Failed to generate images. Please try again.");
     } finally {
       setIsLoading(false);
@@ -69,6 +71,13 @@ const LogoGeneratorView: React.FC = () => {
         setError("Failed to convert image to SVG. This feature works best for simple, high-contrast images.");
     }
   };
+  
+  const examplePrompts = [
+      "A modern banner for a tech conference, dark theme with neon blue accents.",
+      "A minimalist logo for 'The Byte' coffee shop, with a circuit board in a coffee bean shape.",
+      "A playful, cartoon-style logo for a pet grooming service called 'Pawsitive Vibes'.",
+      "A corporate logo for 'Apex Financial', using a mountain peak motif."
+  ];
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto">
@@ -84,6 +93,7 @@ const LogoGeneratorView: React.FC = () => {
                 <CardDescription>Configure the prompt and parameters for logo generation.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+                 <ExamplePrompts prompts={examplePrompts} onSelectPrompt={setPrompt} />
                 <Textarea
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}

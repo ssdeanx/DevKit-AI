@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, FormEvent, useContext } from 'react';
 import { supervisor } from '../services/supervisor';
 import { UserIcon, BotIcon, ThumbsUpIcon, ThumbsDownIcon, BrainIcon, ToolIcon } from '../components/icons';
@@ -9,8 +8,11 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { cn } from '../lib/utils';
 import { useSettings } from '../context/SettingsContext';
-import { ViewName } from '../App';
-import { FunctionCall } from '@google/genai';
+import { ViewName, WorkflowStep } from '../App';
+import { FunctionCall, GroundingChunk } from '@google/genai';
+import WorkflowStatus from '../components/WorkflowStatus';
+import ExamplePrompts from '../components/ExamplePrompts';
+import MarkdownRenderer from '../components/MarkdownRenderer';
 
 type MessageAuthor = 'user' | 'ai';
 type Feedback = 'positive' | 'negative' | null;
@@ -24,6 +26,7 @@ interface Message {
   feedback: Feedback;
   functionCall?: FunctionCall;
   isFunctionCallMessage?: boolean;
+  sources?: GroundingChunk[];
 }
 
 const useTypewriter = (text: string, speed = 20) => {
@@ -54,6 +57,7 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activeAgentName, setActiveAgentName] = useState<string | null>(null);
+  const [workflowPlan, setWorkflowPlan] = useState<WorkflowStep[] | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { repoUrl, fileTree } = useContext(GithubContext);
 
@@ -65,7 +69,7 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(scrollToBottom, [messages]);
+  useEffect(scrollToBottom, [messages, workflowPlan]);
 
   const handleSendMessage = async (e: FormEvent) => {
     e.preventDefault();
@@ -79,9 +83,11 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
     };
     setMessages(prev => [...prev, userMessage]);
     historyService.addEntry({id: userMessage.id, author: 'user', content: inputValue});
-
+    
+    console.log(`ChatView: Sending message to supervisor: "${inputValue}"`);
     setInputValue('');
     setIsLoading(true);
+    setWorkflowPlan(null);
 
     try {
       const { agent, stream } = await supervisor.handleRequest(inputValue, fileTree, { setActiveView });
@@ -91,6 +97,7 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
       let finalContent = '';
       let finalThoughts = '';
       let finalFunctionCall: FunctionCall | undefined = undefined;
+      let finalSources: GroundingChunk[] | undefined = undefined;
       let isFunctionCallMessage = false;
       
       setMessages(prev => [...prev, { 
@@ -112,18 +119,22 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
           finalFunctionCall = chunk.functionCall;
           finalContent = `Executing tool: \`${chunk.functionCall.name}\` with arguments: \`${JSON.stringify(chunk.functionCall.args)}\``;
           isFunctionCallMessage = true;
+        } else if (chunk.type === 'workflowUpdate' && chunk.plan) {
+            setWorkflowPlan(chunk.plan);
+        } else if (chunk.type === 'metadata' && chunk.metadata.groundingMetadata) {
+            finalSources = chunk.metadata.groundingMetadata.groundingChunks;
         }
         
         setMessages(prev =>
           prev.map(msg =>
-            msg.id === aiMessageId ? { ...msg, content: finalContent, thoughts: finalThoughts, functionCall: finalFunctionCall, isFunctionCallMessage } : msg
+            msg.id === aiMessageId ? { ...msg, content: finalContent, thoughts: finalThoughts, functionCall: finalFunctionCall, isFunctionCallMessage, agentName: chunk.agentName || agent.name, sources: finalSources } : msg
           )
         );
       }
       historyService.addEntry({id: aiMessageId, author: 'ai', content: finalContent, thoughts: finalThoughts, agentName: agent.name});
 
     } catch (error) {
-      console.error("Error sending message:", error);
+      console.error("ChatView: Error sending message:", error);
       const errorMessage: Message = {
         id: `err-${Date.now()}`,
         author: 'ai',
@@ -135,38 +146,27 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
     } finally {
       setIsLoading(false);
       setActiveAgentName(null);
+      // Keep the workflow plan visible after completion
+      if (workflowPlan) {
+        setWorkflowPlan(plan => plan ? plan.map(step => ({...step, status: 'completed'})) : null);
+      }
     }
   };
   
   const handleFeedback = (messageId: string, rating: 'positive' | 'negative') => {
-    setMessages(prev => prev.map(msg => 
-        msg.id === messageId ? {...msg, feedback: rating} : msg
-    ));
-  };
-  
-  const renderContent = (content: string) => {
-    const codeBlockRegex = /```(\w+)?\n([\s\S]+?)\n```/g;
-    const parts = content.split(codeBlockRegex);
+      setMessages(prev => prev.map(msg => 
+          msg.id === messageId ? {...msg, feedback: rating} : msg
+      ));
 
-    return parts.map((part, index) => {
-        if (index % 3 === 2) {
-            const lang = parts[index - 1] || 'text';
-            return (
-                <div key={index} className="bg-background rounded-md my-2 text-sm text-foreground">
-                    <div className="bg-muted px-3 py-1 text-xs text-muted-foreground rounded-t-md flex justify-between items-center">
-                        <span>{lang}</span>
-                        <Button variant="ghost" size="sm" onClick={() => navigator.clipboard.writeText(part.trim())} className="h-auto px-2 py-0.5 text-xs">Copy</Button>
-                    </div>
-                    <pre className="p-3 overflow-x-auto">
-                        <code>{part.trim()}</code>
-                    </pre>
-                </div>
-            );
-        } else if (index % 3 === 0) {
-            return <span key={index}>{part}</span>;
-        }
-        return null;
-    });
+      const message = messages.find(msg => msg.id === messageId);
+      if (!message) return;
+
+      if (rating === 'negative') {
+          const reason = window.prompt("What went wrong? (Optional)");
+          supervisor.recordFeedback(messageId, 'negative', reason, message.agentName);
+      } else {
+          supervisor.recordFeedback(messageId, 'positive', null, message.agentName);
+      }
   };
 
   const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
@@ -174,7 +174,8 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
     const [showThoughts, setShowThoughts] = useState(false);
     const { settings } = useSettings();
     const animatedThoughts = useTypewriter(showThoughts ? message.thoughts || '' : '', 10);
-    
+    const needsCursor = settings.agentThoughtsStyle === 'terminal' || settings.agentThoughtsStyle === 'matrix';
+
     return (
       <div className={cn("flex items-start gap-4 animate-in", isUser ? "justify-end" : "")}>
         {!isUser && (
@@ -189,7 +190,25 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
                 message.isFunctionCallMessage && "border-primary/50 bg-primary/10"
             )}>
                 <CardContent className={cn("p-3 text-sm", message.isFunctionCallMessage && "text-primary/90 italic")}>
-                    {renderContent(message.content)}
+                    <MarkdownRenderer content={message.content} />
+                    {message.sources && message.sources.length > 0 && (
+                        <div className="mt-4 pt-2 border-t border-border/50">
+                            <h4 className="text-xs font-semibold text-muted-foreground mb-2">Sources:</h4>
+                            <div className="flex flex-wrap gap-2">
+                                {message.sources.map((source, index) => (
+                                    'web' in source && source.web && <a
+                                        key={index}
+                                        href={source.web.uri}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs bg-background hover:bg-accent text-accent-foreground py-1 px-2 rounded-full transition-colors"
+                                    >
+                                        {index + 1}. {source.web.title || new URL(source.web.uri).hostname}
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
                 {!isUser && message.content && !message.isFunctionCallMessage && (
                     <CardFooter className="p-2 border-t justify-between items-center">
@@ -214,13 +233,23 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
               <Card className={cn(
                   "bg-muted animate-in",
                   settings.agentThoughtsStyle === 'terminal' && 'thoughts-terminal',
-                  settings.agentThoughtsStyle === 'blueprint' && 'thoughts-blueprint'
+                  settings.agentThoughtsStyle === 'blueprint' && 'thoughts-blueprint',
+                  settings.agentThoughtsStyle === 'handwritten' && 'thoughts-handwritten',
+                  settings.agentThoughtsStyle === 'code-comment' && 'thoughts-code-comment',
+                  settings.agentThoughtsStyle === 'matrix' && 'thoughts-matrix',
+                  settings.agentThoughtsStyle === 'scroll' && 'thoughts-scroll',
               )}>
                 <CardContent className="p-3">
                     <h4 className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-2"><BrainIcon className="w-4 h-4" /> AGENT THOUGHTS</h4>
                     <div className={cn(
-                        "text-xs text-muted-foreground min-h-[20px]",
-                        settings.agentThoughtsStyle === 'terminal' && 'thoughts-terminal-content'
+                        "text-xs min-h-[20px]",
+                        settings.agentThoughtsStyle === 'default' && 'text-muted-foreground',
+                        settings.agentThoughtsStyle === 'terminal' && 'text-[#C9D1D9]',
+                        settings.agentThoughtsStyle === 'matrix' && 'text-green-400',
+                        settings.agentThoughtsStyle === 'handwritten' && 'text-[#4A4A4A]',
+                        settings.agentThoughtsStyle === 'code-comment' && 'thoughts-code-comment-content text-[#6A9955]',
+                        settings.agentThoughtsStyle === 'scroll' && 'text-[#5C4033]',
+                        needsCursor && 'typing-cursor'
                     )} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                       {animatedThoughts}
                     </div>
@@ -237,6 +266,13 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
     );
   };
 
+  const examplePrompts = [
+    "Create a sequence diagram for a user login flow using Mermaid.js.",
+    "Who won the 2024 Le Mans?",
+    "Research the top 3 frontend frameworks, then write a comparison table in markdown.",
+    "Navigate to the settings and change ChatAgent's temperature to 0.8"
+  ];
+
   return (
     <div className="flex flex-col h-full bg-background">
       <header className="p-6 border-b glass-effect">
@@ -250,6 +286,7 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
       </header>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {workflowPlan && <WorkflowStatus plan={workflowPlan} />}
         {messages.map((msg) => (
           <ChatMessage key={msg.id} message={msg} />
         ))}
@@ -271,6 +308,9 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
       </div>
 
       <div className="p-6 bg-background border-t glass-effect">
+        {messages.length === 0 && !isLoading && (
+            <ExamplePrompts prompts={examplePrompts} onSelectPrompt={setInputValue} />
+        )}
         <form onSubmit={handleSendMessage} className="flex items-center space-x-4">
           <Input
             type="text"

@@ -1,11 +1,12 @@
 import React, { createContext, useState, useEffect, ReactNode, useContext } from 'react';
 
-export type AgentThoughtsStyle = 'default' | 'terminal' | 'blueprint';
+export type AgentThoughtsStyle = 'default' | 'terminal' | 'blueprint' | 'handwritten' | 'code-comment' | 'matrix' | 'scroll';
 export type WorkflowVisualType = 'simple' | 'detailed';
 
 interface Settings {
   agentThoughtsStyle: AgentThoughtsStyle;
   workflowVisual: WorkflowVisualType;
+  isCacheEnabled: boolean;
 }
 
 interface SettingsContextType {
@@ -18,6 +19,7 @@ const SETTINGS_STORAGE_KEY = 'devkit-ai-pro-settings';
 const defaultSettings: Settings = {
   agentThoughtsStyle: 'default',
   workflowVisual: 'simple',
+  isCacheEnabled: true,
 };
 
 export const SettingsContext = createContext<SettingsContextType>({
@@ -29,7 +31,8 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [settings, setSettingsState] = useState<Settings>(() => {
     try {
       const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
-      return storedSettings ? JSON.parse(storedSettings) : defaultSettings;
+      const parsedSettings = storedSettings ? JSON.parse(storedSettings) : {};
+      return { ...defaultSettings, ...parsedSettings };
     } catch (error) {
       console.error("Failed to load settings from localStorage:", error);
       return defaultSettings;

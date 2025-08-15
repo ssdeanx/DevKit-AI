@@ -144,16 +144,46 @@
         .thoughts-terminal {
           @apply bg-[#0D1117] font-mono text-[#C9D1D9] border-[#30363D];
         }
-        .thoughts-terminal-content::after {
-          content: '▋';
-          @apply ml-1 animate-blink;
-        }
         .thoughts-blueprint {
             @apply bg-blue-950/50 border-blue-400/20;
             background-image:
                 linear-gradient(to right, theme('colors.blue.400 / 0.1') 1px, transparent 1px),
                 linear-gradient(to bottom, theme('colors.blue.400 / 0.1') 1px, transparent 1px);
             background-size: 20px 20px;
+        }
+        .thoughts-handwritten {
+            @apply bg-[#FDFBF7] border-[#D3C4A3] p-4 rounded-lg;
+            font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', sans-serif;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            background-image: linear-gradient(90deg, #EAE3D6 1px, transparent 1px), linear-gradient(#EAE3D6 1px, transparent 1px);
+            background-size: 20px 20px;
+            line-height: 1.8;
+        }
+        .thoughts-code-comment {
+            @apply bg-[#1E1E1E] font-mono border-[#303030] p-4 rounded-lg;
+        }
+        .thoughts-code-comment-content::before {
+            content: '/*';
+            display: block;
+        }
+        .thoughts-code-comment-content::after {
+            content: '*/';
+            display: block;
+        }
+        .thoughts-matrix {
+            @apply bg-black font-mono border-green-700 p-4 rounded-lg;
+            text-shadow: 0 0 5px #0f0;
+        }
+        .thoughts-scroll {
+            @apply bg-[#F4E9D8] border-[#BFA98D] text-[#5C4033] p-6 rounded-lg;
+            font-family: 'Georgia', 'Times New Roman', serif;
+            background: linear-gradient(to bottom, #F4E9D8, #EADBC8);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2), inset 0 0 15px rgba(0,0,0,0.1);
+            border-radius: 2px;
+        }
+        .typing-cursor::after {
+          content: '▋';
+          @apply ml-1 animate-blink;
         }
         .animate-in {
             animation: fade-in forwards, slide-up forwards;
@@ -203,8 +233,19 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
+        .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+        .react-flow__node, .react-flow__edge {
+          transition: opacity 0.2s;
+        }
+        .react-flow__node.dimmed, .react-flow__edge.dimmed {
+          opacity: 0.2;
+        }
       }
     </style>
+    <link rel="stylesheet" href="https://esm.sh/reactflow@11.11.4/dist/style.css">
     <script type="importmap">
 {
   "imports": {
@@ -217,13 +258,23 @@
     "clsx": "https://esm.sh/clsx@2.1.1",
     "tailwind-merge": "https://esm.sh/tailwind-merge@2.4.0",
     "potrace": "https://esm.sh/potrace@2.1.8",
-    "lodash": "https://esm.sh/lodash@^4.17.21"
+    "lodash": "https://esm.sh/lodash@^4.17.21",
+    "react-markdown": "https://esm.sh/react-markdown@9.0.1",
+    "remark-gfm": "https://esm.sh/remark-gfm@4.0.0",
+    "reactflow": "https://esm.sh/reactflow@11.11.4",
+    "idb-keyval": "https://esm.sh/idb-keyval@6.2.1",
+    "elkjs": "https://esm.sh/elkjs@0.9.3/lib/elk.bundled.js"
   }
 }
 </script>
 </head>
   <body>
     <div id="root"></div>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      // Initialize mermaid with the dark theme and disable auto-start
+      mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+    </script>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>

@@ -8,6 +8,7 @@ import { Label } from '../components/ui/Label';
 import { Slider } from '../components/ui/Slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select';
 import { convertPngToSvg } from '../lib/image';
+import ExamplePrompts from '../components/ExamplePrompts';
 
 type AspectRatio = "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
 
@@ -24,6 +25,7 @@ const IconGeneratorView: React.FC = () => {
       setError("Please enter a prompt.");
       return;
     }
+    console.log(`IconGeneratorView: Generating ${numberOfImages} image(s) with aspect ratio ${aspectRatio} for prompt: "${prompt}"`);
     setIsLoading(true);
     setError(null);
     setGeneratedImages([]);
@@ -35,7 +37,7 @@ const IconGeneratorView: React.FC = () => {
       });
       setGeneratedImages(images.map(img => img.image.imageBytes));
     } catch (e) {
-      console.error("Image generation failed:", e);
+      console.error("IconGeneratorView: Image generation failed:", e);
       setError("Failed to generate images. Please try again.");
     } finally {
       setIsLoading(false);
@@ -68,7 +70,13 @@ const IconGeneratorView: React.FC = () => {
         setError("Failed to convert image to SVG. This feature works best for simple, high-contrast images.");
     }
   };
-
+  
+  const examplePrompts = [
+      "A minimalist, single-line vector icon of a brain.",
+      "A flat design icon for a weather app showing a sun behind a cloud.",
+      "A photorealistic 3D icon of a golden key.",
+      "A retro, pixel art icon of a floppy disk."
+  ];
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto">
@@ -84,6 +92,7 @@ const IconGeneratorView: React.FC = () => {
                 <CardDescription>Configure the prompt and parameters for image generation.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+                <ExamplePrompts prompts={examplePrompts} onSelectPrompt={setPrompt} />
                 <Textarea
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}

@@ -1,13 +1,22 @@
 
-import React from 'react';
+import React, { useContext } from 'react';
 import { ViewName } from '../App';
-import { ChatIcon, DocumentIcon, ImageIcon, GithubIcon, HistoryIcon, SettingsIcon } from './icons';
+import { ChatIcon, DocumentIcon, ImageIcon, GithubIcon, HistoryIcon, SettingsIcon, CodeGraphIcon } from './icons';
 import { Button } from './ui/Button';
 import { cn } from '../lib/utils';
+import { GithubContext } from '../context/GithubContext';
 
 interface SidebarProps {
   activeView: ViewName;
   setActiveView: (view: ViewName) => void;
+}
+
+interface NavItemConfig {
+    id: ViewName;
+    label: string;
+    icon: React.ReactNode;
+    group: string;
+    disabled?: boolean;
 }
 
 const NavItem: React.FC<{
@@ -16,7 +25,8 @@ const NavItem: React.FC<{
   viewName: ViewName;
   isActive: boolean;
   onClick: () => void;
-}> = ({ icon, label, isActive, onClick }) => (
+  disabled?: boolean;
+}> = ({ icon, label, isActive, onClick, disabled }) => (
   <Button
     variant="ghost"
     onClick={onClick}
@@ -25,6 +35,7 @@ const NavItem: React.FC<{
         isActive && "bg-accent text-accent-foreground"
     )}
     aria-current={isActive ? 'page' : undefined}
+    disabled={disabled}
   >
     {icon}
     <span className="ml-3">{label}</span>
@@ -32,18 +43,21 @@ const NavItem: React.FC<{
 );
 
 const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
-  const navItems = [
+  const { repoUrl } = useContext(GithubContext);
+
+  const navItems: NavItemConfig[] = [
     { id: 'chat', label: 'Chat', icon: <ChatIcon className="h-5 w-5" />, group: 'AI Tools' },
     { id: 'project-rules', label: 'Project Rules', icon: <DocumentIcon className="h-5 w-5" />, group: 'AI Tools' },
     { id: 'readme-generator', label: 'README Pro', icon: <DocumentIcon className="h-5 w-5" />, group: 'AI Tools' },
     { id: 'icon-generator', label: 'Icon Generator', icon: <ImageIcon className="h-5 w-5" />, group: 'AI Tools' },
     { id: 'logo-generator', label: 'Logo/Banner Gen', icon: <ImageIcon className="h-5 w-5" />, group: 'AI Tools' },
     { id: 'github-inspector', label: 'GitHub Inspector', icon: <GithubIcon className="h-5 w-5" />, group: 'Project' },
+    { id: 'code-graph', label: 'Code Graph', icon: <CodeGraphIcon className="h-5 w-5" />, group: 'Project', disabled: !repoUrl },
     { id: 'history', label: 'History', icon: <HistoryIcon className="h-5 w-5" />, group: 'Project' },
     { id: 'settings', label: 'Settings', icon: <SettingsIcon className="h-5 w-5" />, group: 'Project' },
-  ] as const;
+  ];
 
-  const groupedNavItems = navItems.reduce<Record<string, Array<typeof navItems[number]>>>((acc, item) => {
+  const groupedNavItems = navItems.reduce<Record<string, NavItemConfig[]>>((acc, item) => {
     if (!acc[item.group]) {
       acc[item.group] = [];
     }
@@ -66,9 +80,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
                   key={item.id}
                   icon={item.icon}
                   label={item.label}
-                  viewName={item.id as ViewName}
+                  viewName={item.id}
                   isActive={activeView === item.id}
-                  onClick={() => setActiveView(item.id as ViewName)}
+                  onClick={() => setActiveView(item.id)}
+                  disabled={item.disabled}
                 />
               ))}
             </div>

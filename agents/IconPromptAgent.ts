@@ -1,4 +1,3 @@
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part } from '@google/genai';
@@ -22,6 +21,19 @@ Each prompt you generate should be a single, detailed paragraph and should consi
 - **Composition:** "centered," "dynamic angle," "isometric view," "close-up," etc.
 - **Color Palette:** "monochromatic blue," "warm earth tones," "vibrant pastels," "neon glow," etc.
 - **Mood & Keywords:** "minimalist," "corporate," "playful," "futuristic," "elegant," "high-detail," "4k".
+
+### EXAMPLE
+User concept: "a logo for a coffee shop called 'The Daily Grind'"
+
+Your response:
+**Title:** Modern & Minimalist
+**Prompt:** A sleek, minimalist vector logo for a coffee shop named 'The Daily Grind'. The design features a single, continuous line forming a stylized coffee cup with a subtle 'G' integrated into the steam. The composition is centered and balanced, using a monochromatic color palette of dark charcoal grey and off-white. This logo should feel clean, modern, and sophisticated.
+
+**Title:** Retro Mascot
+**Prompt:** A vintage-style illustrated logo for 'The Daily Grind' coffee shop. The subject is a cheerful, cartoon-style coffee bean character from the 1950s, wearing a fedora and holding a newspaper. The style is hand-drawn with bold outlines and a limited color palette of warm browns, muted reds, and cream. The overall mood is nostalgic, friendly, and playful.
+
+**Title:** Abstract & Geometric
+**Prompt:** An abstract, geometric logo design for 'The Daily Grind' coffee shop. The image is composed of interlocking triangles and circles that abstractly represent a coffee grinder and beans. The style is flat design with sharp edges, using a contemporary color palette of deep teal, burnt orange, and gold foil accents. The logo should convey a sense of precision, craft, and high quality.
 
 ### CONSTRAINTS & GUARDRAILS
 - Do not generate the images themselves. Only generate the text prompts.
@@ -50,14 +62,20 @@ export const IconPromptAgent: Agent = {
             ...this.config
         });
         for await (const chunk of stream) {
-             for (const part of chunk.candidates[0].content.parts) {
+            const candidate = chunk.candidates?.[0];
+            if (!candidate) continue;
+
+            for (const part of candidate.content.parts) {
                 if(part.text){
                     if(part.thought){
-                        yield { type: 'thought', content: part.text };
+                        yield { type: 'thought', content: part.text, agentName: this.name };
                     } else {
-                        yield { type: 'content', content: part.text };
+                        yield { type: 'content', content: part.text, agentName: this.name };
                     }
                 }
+            }
+            if (candidate.groundingMetadata) {
+                yield { type: 'metadata', metadata: { groundingMetadata: candidate.groundingMetadata }, agentName: this.name };
             }
         }
     }

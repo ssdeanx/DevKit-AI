@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { agentService } from '../services/agent.service';
 import { Agent, AgentConfig } from '../agents/types';
@@ -13,6 +12,8 @@ import WorkflowVisual from '../components/WorkflowVisual';
 import { Textarea } from '../components/ui/Textarea';
 import { Switch } from '../components/ui/Switch'; 
 import { cn } from '../lib/utils';
+import { cacheService } from '../services/cache.service';
+import { Button } from '../components/ui/Button';
 
 
 const SettingsSlider: React.FC<{
@@ -51,18 +52,21 @@ const AgentSettings: React.FC<{ agent: Agent, onConfigChange: (agentId: string, 
 
     const handleToolToggle = (toolName: 'googleSearch' | 'codeExecution', enabled: boolean) => {
         const currentTools = agent.config.config?.tools || [];
-        let newTools: Tool[];
-
+        let newTools;
+    
         if (enabled) {
-             if (!currentTools.some(t => toolName in t)) {
+            if (!currentTools.some(t => toolName in t)) {
                 // Add the tool, preserving other tools like function declarations
-                newTools = [...currentTools, { [toolName]: {} }];
-                 onConfigChange(agent.id, { config: { tools: newTools as any } });
+                const newTool = toolName === 'googleSearch' 
+                    ? { googleSearch: {} } 
+                    : { codeExecution: {} };
+                newTools = [...currentTools, newTool];
+                onConfigChange(agent.id, { config: { tools: newTools as any } });
             }
         } else {
             // Remove the tool, preserving others
             newTools = currentTools.filter(t => !(toolName in t));
-             if (newTools.length < currentTools.length) {
+            if (newTools.length < currentTools.length) {
                 onConfigChange(agent.id, { config: { tools: newTools as any } });
             }
         }
@@ -238,6 +242,10 @@ const SettingsView: React.FC = () => {
                                 <SelectItem value="default">Default Card</SelectItem>
                                 <SelectItem value="terminal">Terminal</SelectItem>
                                 <SelectItem value="blueprint">Blueprint</SelectItem>
+                                <SelectItem value="handwritten">Handwritten Notes</SelectItem>
+                                <SelectItem value="code-comment">Code Comment</SelectItem>
+                                <SelectItem value="matrix">Matrix</SelectItem>
+                                <SelectItem value="scroll">Ancient Scroll</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -254,6 +262,28 @@ const SettingsView: React.FC = () => {
                         </Select>
                         <div className="p-4 border rounded-lg bg-secondary/50 mt-4">
                             <WorkflowVisual style={settings.workflowVisual} />
+                        </div>
+                    </div>
+                    <div className="border-t pt-6">
+                        <h3 className="text-lg font-medium text-foreground mb-2">Generation Cache</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                            Cache expensive generation results (like code graphs or documentation) in your browser's local storage to reduce token usage and speed up repeated requests.
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id="cache-toggle"
+                                    checked={settings.isCacheEnabled}
+                                    onCheckedChange={(checked) => setSettings({ ...settings, isCacheEnabled: checked })}
+                                />
+                                <Label htmlFor="cache-toggle">Enable Cache</Label>
+                            </div>
+                            <Button
+                                variant="outline"
+                                onClick={async () => await cacheService.clear()}
+                            >
+                                Clear Cache Now
+                            </Button>
                         </div>
                     </div>
                 </CardContent>

@@ -74,6 +74,6 @@ export const StructuredOutputAgent: Agent = {
             ...this.config
         });
         
-        yield { type: 'content', content: `\`\`\`json\n${response.text}\n\`\`\`` };
+        yield { type: 'content', content: `\`\`\`json\n${response.text}\n\`\`\``, agentName: this.name };
     }
 };

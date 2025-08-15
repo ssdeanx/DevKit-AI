@@ -1,4 +1,3 @@
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part } from '@google/genai';
@@ -42,14 +41,20 @@ export const UrlAgent: Agent = {
             ...this.config,
         });
         for await (const chunk of stream) {
-            for (const part of chunk.candidates[0].content.parts) {
+            const candidate = chunk.candidates?.[0];
+            if (!candidate) continue;
+
+            for (const part of candidate.content.parts) {
                 if(part.text){
                     if(part.thought){
-                        yield { type: 'thought', content: part.text };
+                        yield { type: 'thought', content: part.text, agentName: this.name };
                     } else {
-                        yield { type: 'content', content: part.text };
+                        yield { type: 'content', content: part.text, agentName: this.name };
                     }
                 }
+            }
+            if (candidate.groundingMetadata) {
+                yield { type: 'metadata', metadata: { groundingMetadata: candidate.groundingMetadata }, agentName: this.name };
             }
         }
     }

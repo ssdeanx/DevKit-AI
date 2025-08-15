@@ -1,4 +1,3 @@
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part } from '@google/genai';
@@ -21,6 +20,19 @@ Start with a section titled "### Critique". In a brief, bulleted list, provide c
 
 **2. Improved Version:**
 Follow the critique with a section titled "### Improved Version". Present the fully rewritten text here.
+
+### EXAMPLE
+User instruction: "Make this sound more professional: 'So, we basically made this new thing to help people do their stuff better.'"
+
+Your response:
+### Critique
+*   **Vague Language:** Phrases like "new thing" and "do their stuff better" are imprecise and lack professional impact.
+*   **Informal Tone:** The use of "So" and "basically" is too conversational for a professional context.
+
+---
+
+### Improved Version
+We have developed an innovative solution designed to enhance user productivity and streamline workflows.
 
 ### CONSTRAINTS & GUARDRAILS
 - Adhere strictly to the user's refinement instruction.
@@ -49,14 +61,20 @@ export const RefinerAgent: Agent = {
             ...this.config
         });
         for await (const chunk of stream) {
-            for (const part of chunk.candidates[0].content.parts) {
+            const candidate = chunk.candidates?.[0];
+            if (!candidate) continue;
+
+            for (const part of candidate.content.parts) {
                 if(part.text){
                     if(part.thought){
-                        yield { type: 'thought', content: part.text };
+                        yield { type: 'thought', content: part.text, agentName: this.name };
                     } else {
-                        yield { type: 'content', content: part.text };
+                        yield { type: 'content', content: part.text, agentName: this.name };
                     }
                 }
+            }
+            if (candidate.groundingMetadata) {
+                yield { type: 'metadata', metadata: { groundingMetadata: candidate.groundingMetadata }, agentName: this.name };
             }
         }
     }

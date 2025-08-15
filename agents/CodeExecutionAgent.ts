@@ -58,7 +58,7 @@ export const CodeExecutionAgent: Agent = {
         for (const part of parts) {
             if (part.text) {
                  if(part.thought){
-                    yield { type: 'thought', content: part.text };
+                    yield { type: 'thought', content: part.text, agentName: this.name };
                 } else {
                     formattedContent += part.text;
                 }
@@ -69,6 +69,6 @@ export const CodeExecutionAgent: Agent = {
             }
         }
         
-        yield { type: 'content', content: formattedContent };
+        yield { type: 'content', content: formattedContent, agentName: this.name };
     }
 };
