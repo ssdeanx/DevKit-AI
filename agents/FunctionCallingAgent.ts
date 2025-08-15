@@ -1,0 +1,85 @@
+
+import { geminiService } from '../services/gemini.service';
+import { Agent, AgentExecuteStream } from './types';
+import { Type, Part } from '@google/genai';
+
+// CRITICAL FIX: To avoid a circular dependency runtime error (this file -> supervisor -> agentService -> this file),
+// we define the agent and view names statically here.
+const AGENT_NAMES = [
+    "ChatAgent", "ReadmeAgent", "ProjectRulesAgent", "ResearchAgent", "RefinerAgent", 
+    "IconPromptAgent", "CodeExecutionAgent", "StructuredOutputAgent", "UrlAgent", "FunctionCallingAgent"
+];
+
+const VIEW_NAMES = ['chat', 'project-rules', 'readme-generator', 'icon-generator', 'logo-generator', 'github-inspector', 'history', 'settings'];
+
+const navigateToView = {
+    name: 'navigateToView',
+    description: 'Navigates the application to a specified view.',
+    parameters: {
+        type: Type.OBJECT,
+        properties: {
+            viewName: {
+                type: Type.STRING,
+                description: 'The name of the view to navigate to.',
+                enum: VIEW_NAMES
+            },
+        },
+        required: ['viewName'],
+    },
+};
+
+const updateAgentSetting = {
+    name: 'updateAgentSetting',
+    description: "Updates a specific configuration parameter for a given AI agent.",
+    parameters: {
+        type: Type.OBJECT,
+        properties: {
+            agentName: {
+                type: Type.STRING,
+                description: "The name of the agent to update.",
+                enum: AGENT_NAMES,
+            },
+            parameter: {
+                type: Type.STRING,
+                description: "The configuration parameter to change.",
+                enum: ["temperature", "topP", "topK", "maxOutputTokens"]
+            },
+            value: {
+                type: Type.NUMBER,
+                description: "The new value for the parameter."
+            }
+        },
+        required: ['agentName', 'parameter', 'value']
+    }
+};
+
+export const FunctionCallingAgent: Agent = {
+    id: 'function-calling-agent',
+    name: 'FunctionCallingAgent',
+    description: 'Uses Function Calling to control the application or perform specific actions. Use this for commands like "navigate to settings" or "change the temperature of the ReadmeAgent".',
+    config: {
+        config: {
+            systemInstruction: "You are a helpful assistant that can control the application by calling functions. When a user asks you to perform an action, call the appropriate function. After the function is executed and you receive the result, summarize what you did for the user in a friendly, conversational tone.",
+            tools: [{ functionDeclarations: [navigateToView, updateAgentSetting] }],
+            temperature: 0,
+        }
+    },
+    execute: async function* (prompt: string | Part[]): AgentExecuteStream {
+        const contents = Array.isArray(prompt) ? prompt : [{ parts: [{ text: prompt }] }];
+        
+        const stream = await geminiService.generateContentStream({
+            contents: contents,
+            ...this.config
+        });
+
+        for await (const chunk of stream) {
+            for (const part of chunk.candidates[0].content.parts) {
+                if (part.functionCall) {
+                    yield { type: 'functionCall', functionCall: part.functionCall };
+                } else if (part.text) {
+                    yield { type: 'content', content: part.text };
+                }
+            }
+        }
+    }
+};

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DevKit AI Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          container: {
+            center: true,
+            padding: "2rem",
+            screens: {
+              "2xl": "1400px",
+            },
+          },
+          extend: {
+            colors: {
+              border: "hsl(var(--border))",
+              input: "hsl(var(--input))",
+              ring: "hsl(var(--ring))",
+              background: "hsl(var(--background))",
+              foreground: "hsl(var(--foreground))",
+              primary: {
+                DEFAULT: "hsl(var(--primary))",
+                foreground: "hsl(var(--primary-foreground))",
+              },
+              secondary: {
+                DEFAULT: "hsl(var(--secondary))",
+                foreground: "hsl(var(--secondary-foreground))",
+              },
+              destructive: {
+                DEFAULT: "hsl(var(--destructive))",
+                foreground: "hsl(var(--destructive-foreground))",
+              },
+              muted: {
+                DEFAULT: "hsl(var(--muted))",
+                foreground: "hsl(var(--muted-foreground))",
+              },
+              accent: {
+                DEFAULT: "hsl(var(--accent))",
+                foreground: "hsl(var(--accent-foreground))",
+              },
+              popover: {
+                DEFAULT: "hsl(var(--popover))",
+                foreground: "hsl(var(--popover-foreground))",
+              },
+              card: {
+                DEFAULT: "hsl(var(--card))",
+                foreground: "hsl(var(--card-foreground))",
+              },
+            },
+            borderRadius: {
+              lg: "var(--radius)",
+              md: "calc(var(--radius) - 2px)",
+              sm: "calc(var(--radius) - 4px)",
+            },
+            keyframes: {
+              "accordion-down": {
+                from: { height: "0" },
+                to: { height: "var(--radix-accordion-content-height)" },
+              },
+              "accordion-up": {
+                from: { height: "var(--radix-accordion-content-height)" },
+                to: { height: "0" },
+              },
+              "blink": {
+                "0%, 100%": { opacity: 1 },
+                "50%": { opacity: 0 },
+              },
+              "fade-in": {
+                from: { opacity: '0' },
+                to: { opacity: '1' },
+              },
+              "slide-up": {
+                from: { transform: 'translateY(10px)' },
+                to: { transform: 'translateY(0)' },
+              },
+               "aurora-bg": {
+                '0%': { transform: 'translate(var(--aurora-start-x), var(--aurora-start-y))' },
+                '100%': { transform: 'translate(var(--aurora-end-x), var(--aurora-end-y))' },
+               },
+               "meteor": {
+                '0%': { transform: 'translate(50vw, -50vh) rotate(215deg)', opacity: '1' },
+                '70%': { opacity: '1' },
+                '100%': { transform: 'translate(-50vw, 50vh) rotate(215deg)', opacity: '0' },
+               },
+               "text-gradient": {
+                  to: { backgroundPosition: "200% center" },
+               }
+            },
+            animation: {
+              "accordion-down": "accordion-down 0.2s ease-out",
+              "accordion-up": "accordion-up 0.2s ease-out",
+              "blink": "blink 1s step-end infinite",
+              "fade-in": "fade-in 0.5s ease-out forwards",
+              "slide-up": "slide-up 0.5s ease-out forwards",
+              "aurora-bg": "aurora-bg 20s infinite alternate linear",
+              "meteor": "meteor 5s linear infinite",
+              "text-gradient": "text-gradient 2s linear infinite",
+            },
+          },
+        },
+      }
+    </script>
+    <style type="text/tailwindcss">
+      @layer base {
+        :root {
+          --background: 240 10% 3.9%;
+          --foreground: 0 0% 98%;
+          --card: 240 10% 10%;
+          --card-foreground: 0 0% 98%;
+          --popover: 240 10% 3.9%;
+          --popover-foreground: 0 0% 98%;
+          --primary: 210 40% 98%;
+          --primary-foreground: 210 40% 9.8%;
+          --secondary: 240 3.7% 15.9%;
+          --secondary-foreground: 0 0% 98%;
+          --muted: 240 3.7% 15.9%;
+          --muted-foreground: 240 5% 64.9%;
+          --accent: 240 3.7% 15.9%;
+          --accent-foreground: 0 0% 98%;
+          --destructive: 0 62.8% 30.6%;
+          --destructive-foreground: 0 0% 98%;
+          --border: 240 3.7% 15.9%;
+          --input: 240 3.7% 15.9%;
+          --ring: 240 4.9% 83.9%;
+          --radius: 0.5rem;
+        }
+      }
+       @layer base {
+        * {
+          @apply border-border;
+        }
+        body {
+          @apply bg-background text-foreground;
+          font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+        }
+      }
+      @layer components {
+        .thoughts-terminal {
+          @apply bg-[#0D1117] font-mono text-[#C9D1D9] border-[#30363D];
+        }
+        .thoughts-terminal-content::after {
+          content: '▋';
+          @apply ml-1 animate-blink;
+        }
+        .thoughts-blueprint {
+            @apply bg-blue-950/50 border-blue-400/20;
+            background-image:
+                linear-gradient(to right, theme('colors.blue.400 / 0.1') 1px, transparent 1px),
+                linear-gradient(to bottom, theme('colors.blue.400 / 0.1') 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        .animate-in {
+            animation: fade-in forwards, slide-up forwards;
+            animation-duration: 0.3s;
+            animation-timing-function: ease-out;
+        }
+        .workflow-node {
+            transition: all 0.3s ease-in-out;
+        }
+        .workflow-arrow {
+            transition: stroke 0.3s ease-in-out;
+            animation-duration: 2s;
+            animation-iteration-count: infinite;
+            animation-timing-function: linear;
+        }
+        @keyframes pulse-arrow {
+            0%, 100% { stroke-dasharray: 1000; stroke-dashoffset: 2000; }
+            50% { stroke-dasharray: 1000; stroke-dashoffset: 0; }
+        }
+        .workflow-arrow-animated {
+            animation-name: pulse-arrow;
+        }
+        .glass-effect {
+          @apply bg-card/60 backdrop-blur-lg border border-border/20;
+        }
+        .spotlight {
+            pointer-events: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at var(--x) var(--y), transparent 10%, hsl(var(--background)) 20%);
+            z-index: 50;
+            opacity: 0.2;
+        }
+        .animate-text-gradient {
+            background-image: linear-gradient(
+                -225deg,
+                hsl(var(--foreground)) 0%,
+                hsl(var(--primary)) 29%,
+                hsl(var(--muted-foreground)) 67%,
+                hsl(var(--foreground)) 100%
+            );
+            background-size: 200% auto;
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+      }
+    </style>
+    <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.1.1/",
+    "react/": "https://esm.sh/react@^19.1.1/",
+    "react": "https://esm.sh/react@^19.1.1",
+    "@google/genai": "https://esm.sh/@google/genai@^1.14.0",
+    "immer": "https://esm.sh/immer@10.1.1",
+    "class-variance-authority": "https://esm.sh/class-variance-authority@0.7.0",
+    "clsx": "https://esm.sh/clsx@2.1.1",
+    "tailwind-merge": "https://esm.sh/tailwind-merge@2.4.0",
+    "potrace": "https://esm.sh/potrace@2.1.8",
+    "lodash": "https://esm.sh/lodash@^4.17.21"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

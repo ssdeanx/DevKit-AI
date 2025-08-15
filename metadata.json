@@ -1,0 +1,5 @@
+{
+  "name": "DevKit AI Pro",
+  "description": "An all-in-one AI-powered toolkit for developers. Features include a professional chat, README and documentation generator, GitHub repository analysis, and AI-driven icon and logo creation. Fine-tune every generation with comprehensive model settings and track your work with a persistent history.",
+  "requestFramePermissions": []
+}
