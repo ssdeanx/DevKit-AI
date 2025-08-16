@@ -1,3 +1,4 @@
+
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Type, Part, Content } from '@google/genai';
@@ -7,10 +8,10 @@ import { Type, Part, Content } from '@google/genai';
 // we define the agent and view names statically. This makes the system more robust.
 const AGENT_NAMES = [
     "ChatAgent", "PlannerAgent", "ReadmeAgent", "ProjectRulesAgent", "ResearchAgent", "RefinerAgent", 
-    "IconPromptAgent", "CodeExecutionAgent", "StructuredOutputAgent", "UrlAgent", "FunctionCallingAgent", "CodeGraphAgent"
+    "IconPromptAgent", "CodeExecutionAgent", "StructuredOutputAgent", "UrlAgent", "FunctionCallingAgent", "CodeGraphAgent", "PullRequestAgent"
 ];
 
-const VIEW_NAMES = ['chat', 'project-rules', 'readme-generator', 'icon-generator', 'logo-generator', 'github-inspector', 'code-graph', 'history', 'settings'];
+const VIEW_NAMES = ['chat', 'project-rules', 'readme-generator', 'icon-generator', 'logo-generator', 'github-inspector', 'code-graph', 'pr-reviewer', 'history', 'settings'];
 
 const navigateToView = {
     name: 'navigateToView',

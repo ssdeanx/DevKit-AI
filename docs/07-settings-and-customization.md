@@ -1,3 +1,4 @@
+
 # Settings & Customization
 
 The **Settings** view gives you granular control over the application's behavior and the parameters of each AI agent.
@@ -64,4 +65,4 @@ graph LR
 -   **Structured Output (JSON Schema):** For agents like `StructuredOutputAgent`, you can provide a specific JSON schema here to force the output into a desired structure.
 
 ---
-*Version 1.2.1*
+*Version 1.3.0*

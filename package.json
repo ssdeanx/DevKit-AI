@@ -24,7 +24,7 @@
     "uuid": "^11.1.0",
     "framer-motion": "^11.3.19",
     "reactflow": "^11.11.4",
-    "elkjs": "^0.10.0"
+    "d3-force": "^3.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

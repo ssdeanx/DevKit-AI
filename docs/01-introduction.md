@@ -1,3 +1,4 @@
+
 # Introduction to DevKit AI Pro 🚀
 
 **Welcome to DevKit AI Pro, your all-in-one, AI-powered toolkit for modern software development.**
@@ -40,4 +41,4 @@ graph TD
 This documentation will guide you through each of these features, explain the core concepts that power the application, and provide best practices to help you get the most out of your new AI assistant.
 
 ---
-*Version 1.2.1*
+*Version 1.3.0*

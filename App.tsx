@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import Sidebar from './components/Sidebar';
 import ChatView from './views/ChatView';
@@ -18,6 +17,7 @@ import MemoryView from './views/MemoryView';
 import { ToastProvider } from './context/ToastContext';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import DocumentationView from './views/DocumentationView';
+import PullRequestView from './views/PullRequestView';
 
 export type ViewName = 
   | 'chat' 
@@ -27,6 +27,7 @@ export type ViewName =
   | 'logo-generator' 
   | 'github-inspector'
   | 'code-graph'
+  | 'pr-reviewer'
   | 'agent-memory'
   | 'documentation'
   | 'history' 
@@ -99,6 +100,8 @@ const App: React.FC = () => {
         return <GithubInspectorView />;
       case 'code-graph':
         return <CodeGraphView />;
+      case 'pr-reviewer':
+        return <PullRequestView />;
       case 'agent-memory':
         return <MemoryView />;
       case 'history':

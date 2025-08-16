@@ -1,3 +1,4 @@
+
 # Core Concepts: The Agentic Workflow
 
 DevKit AI Pro is built on an **agentic architecture**. Instead of a single, monolithic AI model, your requests are handled by a team of specialized AI agents, each with a unique purpose, persona, and skillset. Understanding this workflow is key to mastering the application.
@@ -77,4 +78,4 @@ The system uses two types of memory to improve its performance over time.
 -   **Long-Term Memory:** When you provide feedback (👍/👎) on an AI's response, the `Supervisor` triggers a process of reflection. The AI analyzes the feedback and the preceding conversation to extract a key takeaway. This "memory" is stored and retrieved in future sessions to avoid repeating mistakes and remember your preferences. You can view these learned memories in the **Agent Memory** tab.
 
 ---
-*Version 1.2.1*
+*Version 1.3.0*

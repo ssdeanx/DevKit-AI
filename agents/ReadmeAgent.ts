@@ -82,6 +82,7 @@ export const ReadmeAgent: Agent = {
             topP: 1.0,
             thinkingConfig: {
                 includeThoughts: true,
+                thinkingBudget: -1,
             }
         }
     },

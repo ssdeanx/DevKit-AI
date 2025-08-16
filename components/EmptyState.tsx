@@ -9,7 +9,7 @@ interface EmptyStateProps {
 
 const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description }) => {
   return (
-    <Card className="flex-1 flex items-center justify-center border-2 border-dashed border-border h-full min-h-[300px] bg-transparent shadow-none">
+    <Card className="flex-1 flex items-center justify-center border-2 border-dashed border-border h-full min-h-[300px] bg-transparent shadow-none glass-effect">
       <CardContent className="text-center text-muted-foreground p-6">
         <div className="mx-auto w-fit p-4 bg-secondary rounded-full mb-4">
           {icon}

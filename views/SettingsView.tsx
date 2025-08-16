@@ -107,7 +107,7 @@ const AgentSettings: React.FC<{ agent: Agent, onConfigChange: (agentId: string, 
         }
     };
 
-    const thinkingBudget = agent.config.config?.thinkingConfig?.thinkingBudget ?? 8192;
+    const thinkingBudget = agent.config.config?.thinkingConfig?.thinkingBudget ?? -1;
     const isDynamicThinking = thinkingBudget === -1;
 
     return (

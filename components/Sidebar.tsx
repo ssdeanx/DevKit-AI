@@ -1,8 +1,7 @@
 
-
 import React, { useContext } from 'react';
 import { ViewName } from '../App';
-import { ChatIcon, DocumentIcon, ImageIcon, GithubIcon, HistoryIcon, SettingsIcon, CodeGraphIcon, LogoIcon, SunIcon, MoonIcon, DatabaseIcon, BookOpenIcon } from './icons';
+import { ChatIcon, DocumentIcon, ImageIcon, GithubIcon, HistoryIcon, SettingsIcon, CodeGraphIcon, LogoIcon, SunIcon, MoonIcon, DatabaseIcon, BookOpenIcon, GitPullRequestIcon } from './icons';
 import { Button } from './ui/Button';
 import { cn } from '../lib/utils';
 import { GithubContext } from '../context/GithubContext';
@@ -94,6 +93,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
         { id: 'github-inspector', label: 'GitHub Inspector', icon: <GithubIcon />, group: 'PROJECT' },
         { id: 'code-graph', label: 'Code Graph', icon: <CodeGraphIcon />, group: 'PROJECT', disabled: !repoUrl },
         { id: 'agent-memory', label: 'Agent Memory', icon: <DatabaseIcon />, group: 'PROJECT' },
+
+        // GitHub Pro
+        { id: 'pr-reviewer', label: 'PR Reviewer', icon: <GitPullRequestIcon />, group: 'GITHUB PRO' },
         
         // App
         { id: 'documentation', label: 'Documentation', icon: <BookOpenIcon />, group: 'APP' },

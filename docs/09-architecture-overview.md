@@ -1,3 +1,4 @@
+
 # Architecture Overview
 
 This document provides a technical overview of the DevKit AI Pro application, its core components, and the data flow for a typical AI request.
@@ -84,4 +85,4 @@ sequenceDiagram
 8.  **Memory Consolidation (`supervisor.ts`):** After the turn is complete, the `supervisor` may trigger the `MemoryAgent` to summarize the interaction and save any important, novel information to long-term memory for future use.
 
 ---
-*Version 1.2.1*
+*Version 1.3.0*

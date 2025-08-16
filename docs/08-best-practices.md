@@ -1,3 +1,4 @@
+
 # Best Practices & Pro Tips
 
 Follow these guidelines to get the most accurate, relevant, and helpful responses from DevKit AI Pro.
@@ -45,4 +46,4 @@ While the Orchestrator is smart, you can guide it by using the dedicated UI view
 -   **Provide a Reason for Bad Responses:** When you give a thumbs down, a modal will appear. Briefly explain *why* the response was bad (e.g., "The code had a bug," "The answer was factually incorrect," "This didn't follow my instructions"). This feedback is crucial for the retry attempt and for creating a long-term memory to avoid the same mistake in the future.
 
 ---
-*Version 1.2.1*
+*Version 1.3.0*

@@ -1,6 +1,7 @@
+
 {
     "title": "DevKit AI Pro Documentation",
-    "version": "1.2.1",
+    "version": "1.3.0",
     "lastUpdated": "2025-08-16",
     "sections": [
         {
@@ -18,6 +19,12 @@
                 { "path": "docs/05-github-inspector.md", "title": "GitHub Inspector", "subtitle": "Providing context to the AI." },
                 { "path": "docs/06-generators.md", "title": "Content Generators", "subtitle": "Create READMEs, icons & more." },
                 { "path": "docs/07-settings-and-customization.md", "title": "Settings & Customization", "subtitle": "Fine-tune the application." }
+            ]
+        },
+        {
+            "title": "GitHub Pro",
+            "pages": [
+                 { "path": "docs/12-pull-request-reviewer.md", "title": "PR Reviewer", "subtitle": "Automated code reviews." }
             ]
         },
         {

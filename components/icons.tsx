@@ -269,3 +269,31 @@ export const BookOpenIcon: React.FC<IconProps> = (props) => (
     <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
   </svg>
 );
+
+export const GitPullRequestIcon: React.FC<IconProps> = (props) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="18" cy="18" r="3"/>
+    <circle cx="6" cy="6" r="3"/>
+    <path d="M13 6h3a2 2 0 0 1 2 2v7"/>
+    <line x1="6" x2="6" y1="9" y2="21"/>
+  </svg>
+);
+
+// For Code Graph Nodes
+export const VercelTriangleIcon: React.FC<IconProps> = (props) => (
+  <svg {...props} fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2z"/></svg>
+);
+export const BracketsIcon: React.FC<IconProps> = (props) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3"/>
+      <path d="M16 21h3a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-3"/>
+  </svg>
+);
+export const ServerIcon: React.FC<IconProps> = (props) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect width="20" height="8" x="2" y="2" rx="2" ry="2"/>
+    <rect width="20" height="8" x="2" y="14" rx="2" ry="2"/>
+    <line x1="6" x2="6.01" y1="6" y2="6"/>
+    <line x1="6" x2="6.01" y1="18" y2="18"/>
+  </svg>
+);

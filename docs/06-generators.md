@@ -1,3 +1,4 @@
+
 # Content Generators
 
 DevKit AI Pro includes several powerful tools for generating content and assets, each powered by a specialized AI agent.
@@ -50,4 +51,4 @@ graph TD
 > **Note on SVG Conversion:** The PNG-to-SVG conversion is done in your browser using the Potrace algorithm. It works best for simple, high-contrast images like logos and icons. It may not produce good results for complex or photographic images.
 
 ---
-*Version 1.2.1*
+*Version 1.3.0*

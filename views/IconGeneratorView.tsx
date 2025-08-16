@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { geminiService } from '../services/gemini.service';
-import { DownloadIcon, ImageIcon, FileSvgIcon } from '../components/icons';
+import { DownloadIcon, ImageIcon, FileSvgIcon, SparklesIcon } from '../components/icons';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { Textarea } from '../components/ui/Textarea';
 import { Button } from '../components/ui/Button';
@@ -13,6 +13,7 @@ import ExamplePrompts from '../components/ExamplePrompts';
 import ViewHeader from '../components/ViewHeader';
 import { useAsyncOperation } from '../hooks/useAsyncOperation';
 import EmptyState from '../components/EmptyState';
+import { cn } from '../lib/utils';
 
 type AspectRatio = "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
 
@@ -75,10 +76,11 @@ const IconGeneratorView: React.FC = () => {
         description="Create stunning icons and images with the Imagen 3 model."
       />
 
-      <div className="flex-1 flex flex-col p-6 gap-6">
+      <div className="flex-1 grid grid-rows-[auto,1fr] p-6 gap-6 overflow-hidden">
+        {/* Control Panel */}
         <Card>
             <CardHeader>
-                <CardTitle>Generation Settings</CardTitle>
+                <CardTitle>Control Panel</CardTitle>
                 <CardDescription>Configure the prompt and parameters for image generation.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -128,34 +130,51 @@ const IconGeneratorView: React.FC = () => {
             </CardContent>
         </Card>
 
-        <div className="flex-1">
-          {generateImagesOperation.error && <div className="text-destructive bg-destructive/10 p-4 rounded-lg text-center">{generateImagesOperation.error}</div>}
-          
-          {generateImagesOperation.data && generateImagesOperation.data.length > 0 && (
-             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {generateImagesOperation.data.map((img, index) => (
-                <div key={index} className="group relative border rounded-lg overflow-hidden">
-                  <img src={`data:image/png;base64,${img}`} alt={`Generated image ${index + 1}`} className="w-full h-full object-contain aspect-square bg-muted" />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                      <Button onClick={() => handleDownloadPng(img, index)} size="icon" variant="secondary" data-tooltip="Download PNG">
-                          <DownloadIcon className="w-5 h-5" />
-                      </Button>
-                      <Button onClick={() => handleDownloadSvg(img, index)} size="icon" variant="secondary" data-tooltip="Download as SVG (Beta)">
-                          <FileSvgIcon className="w-5 h-5" />
-                      </Button>
-                  </div>
+        {/* Canvas */}
+        <div className={cn("flex flex-col relative aurora-canvas canvas-background p-4 h-full overflow-hidden")}>
+           <div className="flex justify-between items-center p-2 relative z-10">
+              <h3 className="text-lg font-semibold">Generated Images</h3>
+           </div>
+           
+           <div className="flex-1 overflow-y-auto custom-scrollbar p-2 relative z-10">
+              {generateImagesOperation.error && <div className="text-destructive bg-destructive/10 p-4 rounded-lg text-center">{generateImagesOperation.error}</div>}
+              
+              {generateImagesOperation.data && generateImagesOperation.data.length > 0 && (
+                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {generateImagesOperation.data.map((img, index) => (
+                    <div key={index} className="group relative overflow-hidden card-glow-border">
+                      <img src={`data:image/png;base64,${img}`} alt={`Generated image ${index + 1}`} className="w-full h-full object-contain aspect-square bg-muted/50" />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <Button onClick={() => handleDownloadPng(img, index)} size="icon" variant="secondary" data-tooltip="Download PNG">
+                              <DownloadIcon className="w-5 h-5" />
+                          </Button>
+                          <Button onClick={() => handleDownloadSvg(img, index)} size="icon" variant="secondary" data-tooltip="Download as SVG (Beta)">
+                              <FileSvgIcon className="w-5 h-5" />
+                          </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+              )}
 
-          {!generateImagesOperation.isLoading && !generateImagesOperation.data && !generateImagesOperation.error && (
-             <EmptyState
-                icon={<ImageIcon className="w-10 h-10" />}
-                title="Ready to create?"
-                description='Enter a prompt above and click "Generate" to see your images appear here.'
-             />
-          )}
+              {!generateImagesOperation.isLoading && !generateImagesOperation.data && !generateImagesOperation.error && (
+                 <div className="h-full flex items-center justify-center">
+                    <EmptyState
+                        icon={<ImageIcon className="w-10 h-10" />}
+                        title="Ready to create?"
+                        description='Enter a prompt above and click "Generate" to see your images appear here.'
+                    />
+                 </div>
+              )}
+            </div>
+
+            {generateImagesOperation.isLoading && (
+                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in">
+                    <SparklesIcon className="w-12 h-12 text-primary animate-pulse" />
+                    <h3 className="text-xl font-semibold mt-4">Generating Images...</h3>
+                    <p className="text-muted-foreground mt-1">The Imagen 3 model is creating your assets.</p>
+                </div>
+            )}
         </div>
       </div>
     </div>

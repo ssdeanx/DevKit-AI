@@ -1,3 +1,4 @@
+
 # Meet the Agents: Your Specialized AI Team
 
 The power of DevKit AI Pro lies in its roster of specialized agents. Each agent is an AI with a unique persona, a specific task, and a tailored configuration. The **Orchestrator** automatically selects the best agent for your request, but understanding their roles can help you craft more effective prompts.
@@ -18,6 +19,8 @@ mindmap
       CodeExecutionAgent
       StructuredOutputAgent
       CodeGraphAgent
+    **GitHub Pro**
+      PullRequestAgent
     **Research & Refinement**
       ResearchAgent
       RefinerAgent
@@ -51,6 +54,14 @@ mindmap
 
 ---
 
+### GitHub Pro Agents
+
+| Agent Name                | Purpose & Best Use Case                                                                                                                                                                   |
+| :------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`PullRequestAgent`**      | An expert code reviewer. It analyzes the changes in a pull request and provides a detailed review, covering bugs, style, and best practices. Powers the "PR Reviewer" tool.              |
+
+---
+
 ### Research & Refinement Agents
 
 | Agent Name        | Purpose & Best Use Case                                                                                                                          |
@@ -69,4 +80,4 @@ mindmap
 | **`MemoryAgent`**    | A system agent that works in the background. It's responsible for summarizing conversations and checking for novel information to store in long-term memory. It is not intended for direct user interaction. |
 
 ---
-*Version 1.2.1*
+*Version 1.3.0*

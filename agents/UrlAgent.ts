@@ -31,6 +31,7 @@ export const UrlAgent: Agent = {
         temperature: 0.5,
         thinkingConfig: {
             includeThoughts: true,
+            thinkingBudget: -1,
         }
        }
     },

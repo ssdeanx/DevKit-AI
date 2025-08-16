@@ -1,3 +1,4 @@
+
 # Troubleshooting & FAQ
 
 This page provides answers to common questions and solutions for potential issues you might encounter while using DevKit AI Pro.
@@ -47,4 +48,4 @@ Your PAT is stored securely in your browser's local storage and is only used to 
 3.  Submitting the feedback will trigger a retry attempt where the AI is instructed to correct its mistake based on your feedback.
 
 ---
-*Version 1.2.1*
+*Version 1.3.0*

@@ -31,6 +31,7 @@ export const ResearchAgent: Agent = {
             topP: 0.8,
             thinkingConfig: {
                 includeThoughts: true,
+                thinkingBudget: -1,
             }
         }
     },

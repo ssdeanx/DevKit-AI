@@ -1,30 +1,39 @@
 
 
-import React, { useState, useContext, useCallback, useEffect } from 'react';
+import React, { useState, useContext, useCallback, useEffect, useMemo } from 'react';
 import ReactFlow, {
   Controls,
   Background,
-  applyNodeChanges,
-  applyEdgeChanges,
   MiniMap,
   BackgroundVariant,
   Panel,
+  useNodesState,
+  useEdgesState,
+  useReactFlow,
+  ReactFlowProvider,
+  NodeProps,
 } from 'reactflow';
-import type { Node, Edge, NodeChange, EdgeChange } from 'reactflow';
-import ELK from 'elkjs';
-import type { ElkNode, ElkExtendedEdge } from 'elkjs';
+import type { Node, Edge } from 'reactflow';
+import {
+  forceSimulation,
+  forceLink,
+  forceManyBody,
+  forceCenter,
+  Simulation,
+  SimulationNodeDatum,
+} from 'd3-force';
 import { GithubContext } from '../context/GithubContext';
 import { supervisor } from '../services/supervisor';
 import { CodeGraphAgent } from '../agents/CodeGraphAgent';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { CodeGraphIcon, CloseIcon, LoaderIcon } from '../components/icons';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
+import { CodeGraphIcon, LoaderIcon, BrainIcon, VercelTriangleIcon, BracketsIcon, ServerIcon, DocumentIcon, SettingsIcon } from '../components/icons';
 import { cacheService } from '../services/cache.service';
 import { useSettings } from '../context/SettingsContext';
-import { useAsyncOperation } from '../hooks/useAsyncOperation';
 import EmptyState from '../components/EmptyState';
 import ViewHeader from '../components/ViewHeader';
-import RepoStatusIndicator from '../components/RepoStatusIndicator';
+import { Input } from '../components/ui/Input';
+import { useStreamingOperation } from '../hooks/useStreamingOperation';
+import { Button } from '../components/ui/Button';
 
 const getNodeColor = (type?: string) => {
     switch (type) {
@@ -33,310 +42,269 @@ const getNodeColor = (type?: string) => {
         case 'component': return 'hsl(var(--dv-blue))';
         case 'service': return 'hsl(var(--dv-teal))';
         case 'config': return 'hsl(var(--dv-orange))';
-        case 'group': return 'hsl(var(--border))';
+        case 'group': return 'hsl(var(--secondary))';
         default: return 'hsl(var(--muted-foreground))';
     }
 };
 
-const elk = new ELK();
+const getNodeIcon = (type?: string) => {
+    const className = "w-4 h-4 mr-2";
+    switch (type) {
+        case 'entry': return <VercelTriangleIcon className={className} />;
+        case 'view': return <VercelTriangleIcon className={className} />;
+        case 'component': return <BracketsIcon className={className} />;
+        case 'service': return <ServerIcon className={className} />;
+        case 'config': return <SettingsIcon className={className} />;
+        default: return <DocumentIcon className={className} />;
+    }
+}
 
-const getLayoutedElements = async (nodes: Node[], edges: Edge[]): Promise<{ nodes: Node[], edges: Edge[] }> => {
-    const elkNodes: ElkNode[] = nodes.map(node => ({
-        id: node.id,
-        width: node.width ?? 150,
-        height: node.height ?? 40,
-    }));
+const CustomNode: React.FC<NodeProps> = ({ data }) => (
+    <div className="flex items-center justify-center w-full h-full p-2">
+        {getNodeIcon(data.type)}
+        <span className="truncate">{data.label}</span>
+    </div>
+);
 
-    const elkEdges: ElkExtendedEdge[] = edges.map(edge => ({
-        id: edge.id,
-        sources: [edge.source],
-        targets: [edge.target],
-    }));
-
-    const graph: ElkNode = {
-        id: 'root',
-        layoutOptions: { 
-            'elk.algorithm': 'layered',
-            'elk.direction': 'RIGHT',
-            'elk.spacing.nodeNode': '80' 
-        },
-        children: elkNodes,
-        edges: elkEdges,
-    };
-
-    const layoutedGraph = await elk.layout(graph);
-    
-    const newNodes: Node[] = layoutedGraph.children?.map(elkNode => {
-        const originalNode = nodes.find(n => n.id === elkNode.id);
-        return {
-            ...originalNode!,
-            position: { x: elkNode.x!, y: elkNode.y! },
-        };
-    }) || [];
-    
-    const newEdges: Edge[] = layoutedGraph.edges?.map(elkEdge => {
-        const originalEdge = edges.find(e => e.id === elkEdge.id);
-        if (!originalEdge) return null;
-        
-        return {
-            ...originalEdge,
-            id: elkEdge.id,
-            source: elkEdge.sources[0],
-            target: elkEdge.targets[0],
-        };
-    }).filter(Boolean) as Edge[] || [];
-
-    return {
-        nodes: newNodes,
-        edges: newEdges,
-    };
+const nodeTypes = {
+  custom: CustomNode,
 };
 
-const CodeGraphView: React.FC = () => {
-  const { fileTree, repoUrl, stagedFiles, isLoading: isRepoLoading } = useContext(GithubContext);
-  const { settings } = useSettings();
-  const [nodes, setNodes] = useState<Node[]>([]);
-  const [edges, setEdges] = useState<Edge[]>([]);
-  const [isGraphLoading, setIsGraphLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
-  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+type SimulationNode = Node & SimulationNodeDatum;
 
+const Graph: React.FC<{ rawNodes: Node[], rawEdges: Edge[] }> = ({ rawNodes, rawEdges }) => {
+    const [nodes, setNodes, onNodesChange] = useNodesState([]);
+    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const { fitView } = useReactFlow();
+    const [searchTerm, setSearchTerm] = useState('');
 
-  const onNodesChange = useCallback((changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)), []);
-  const onEdgesChange = useCallback((changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)), []);
+    useEffect(() => {
+        if (rawNodes.length === 0) return;
 
-  const handleGenerateGraph = useCallback(async () => {
-    if (!fileTree) {
-      setError("A GitHub repository must be loaded first.");
-      return;
-    }
+        const degreeMap = new Map<string, number>();
+        rawEdges.forEach(edge => {
+            degreeMap.set(edge.source, (degreeMap.get(edge.source) || 0) + 1);
+            degreeMap.set(edge.target, (degreeMap.get(edge.target) || 0) + 1);
+        });
 
-    const cacheKey = `code-graph-v2::${repoUrl}`;
-    if (settings.isCacheEnabled) {
-        const hasCache = await cacheService.has(cacheKey);
-        if (hasCache) {
-            console.log(`CodeGraphView: Loading graph from cache for key: ${cacheKey}`);
-            const cachedData = await cacheService.get<{ nodes: Node[], edges: Edge[] }>(cacheKey);
-            if (cachedData) {
-                const { nodes: layoutedNodes, edges: layoutedEdges } = await getLayoutedElements(cachedData.nodes, cachedData.edges);
-                setNodes(layoutedNodes);
-                setEdges(layoutedEdges.map(e => ({ ...e, animated: true })));
-                return;
-            }
-        }
-    }
+        const sizedNodes = rawNodes.map(node => {
+            const degree = degreeMap.get(node.id) || 0;
+            const isGroup = node.data.type === 'group';
+            return {
+                ...node,
+                type: isGroup ? 'default' : 'custom',
+                position: { x: Math.random() * 800, y: Math.random() * 600 },
+                style: {
+                    border: `2px solid ${getNodeColor(node.data.type)}`,
+                    backgroundColor: isGroup ? 'hsl(var(--secondary) / 0.5)' : 'hsl(var(--card))',
+                    color: 'hsl(var(--card-foreground))',
+                    width: isGroup ? 300 : Math.max(150, node.data.label.length * 8 + 40),
+                    height: isGroup ? 200 : 40,
+                    fontSize: '12px',
+                    borderRadius: '8px',
+                },
+            };
+        });
 
-    console.log("CodeGraphView: Starting graph generation (no cache).");
-    setIsGraphLoading(true);
-    setError(null);
-    setNodes([]);
-    setEdges([]);
-    setSelectedNode(null);
+        const sizedEdges = rawEdges.map(edge => ({
+            ...edge,
+            animated: true,
+            style: { 
+                strokeWidth: 1 + Math.min(degreeMap.get(edge.source) || 0, degreeMap.get(edge.target) || 0) / 5,
+                stroke: 'hsl(var(--border))',
+            },
+        }));
+
+        const nodesForSimulation = sizedNodes.map(n => ({ ...n })) as SimulationNode[];
+
+        const simulation: Simulation<SimulationNode, Edge> = forceSimulation(nodesForSimulation)
+            .force('link', forceLink<SimulationNode, Edge>(sizedEdges).id((d) => d.id).distance(120))
+            .force('charge', forceManyBody().strength(-300))
+            .force('center', forceCenter(window.innerWidth / 4, window.innerHeight / 4));
+
+        simulation.on('tick', () => {
+             setNodes(currentNodes =>
+                currentNodes.map(n => {
+                    const simNode = nodesForSimulation.find(sn => sn.id === n.id);
+                    return simNode ? { ...n, position: { x: simNode.x ?? 0, y: simNode.y ?? 0 } } : n;
+                })
+            );
+        });
+
+        simulation.on('end', () => {
+             setTimeout(() => fitView({ padding: 0.1, duration: 800 }), 100);
+        });
+        
+        setNodes(sizedNodes);
+        setEdges(sizedEdges);
+
+        return () => {
+            simulation.stop();
+        };
+    }, [rawNodes, rawEdges, setNodes, setEdges, fitView]);
     
-    let graphJsonString = '';
-    try {
-      const prompt = "Generate a code graph for the current project structure, classifying nodes and grouping them by directory. Do not calculate positions.";
-      const { stream } = await supervisor.handleRequest(prompt, { fileTree, stagedFiles }, { setActiveView: () => {} }, CodeGraphAgent.id);
-      
-      for await (const chunk of stream) {
-        if (chunk.type === 'content') {
-          graphJsonString += chunk.content;
+     useEffect(() => {
+        const lowerCaseSearch = searchTerm.toLowerCase().trim();
+        const shouldDim = lowerCaseSearch !== '';
+        
+        const matchingNodeIds = new Set(
+            shouldDim ? nodes.filter(n => n.data.label.toLowerCase().includes(lowerCaseSearch)).map(n => n.id) : []
+        );
+
+        if (shouldDim && matchingNodeIds.size === 0) {
+            setNodes(nds => nds.map(n => ({ ...n, className: 'dimmed' })));
+            setEdges(eds => eds.map(e => ({ ...e, className: 'dimmed' })));
+            return;
         }
-      }
-      
-      const graphData = JSON.parse(graphJsonString);
-      const rawNodes = graphData.nodes.map((node: Node) => ({
-        ...node,
-        style: {
-            ...node.style,
-            border: `2px solid ${getNodeColor(node.data.type)}`,
-            backgroundColor: node.data.type === 'group' ? 'hsla(var(--card), 0.1)' : 'hsl(var(--card))',
-            color: 'hsl(var(--card-foreground))',
-        },
-      }));
-      const rawEdges = graphData.edges || [];
 
-      const { nodes: layoutedNodes, edges: layoutedEdges } = await getLayoutedElements(rawNodes, rawEdges);
-      setNodes(layoutedNodes);
-      setEdges(layoutedEdges.map(e => ({ ...e, animated: true })));
-      
-      if (settings.isCacheEnabled) {
-          console.log(`CodeGraphView: Saving graph to cache with key: ${cacheKey}`);
-          await cacheService.set(cacheKey, { nodes: rawNodes, edges: rawEdges });
-      }
+        const connectedEdges = shouldDim ? edges.filter(e => matchingNodeIds.has(e.source) || matchingNodeIds.has(e.target)) : [];
+        const highlightedNodeIds = new Set(connectedEdges.flatMap(e => [e.source, e.target]));
+        matchingNodeIds.forEach(id => highlightedNodeIds.add(id));
 
-    } catch (err) {
-      console.error("CodeGraphView: Error generating or parsing graph data:", err);
-      console.error("CodeGraphView: Raw AI output that failed to parse:", graphJsonString);
-      setError("Failed to generate the code graph. The AI may have returned an invalid structure. Please try again.");
-    } finally {
-      setIsGraphLoading(false);
+        setNodes(nds =>
+            nds.map(n => ({
+                ...n,
+                className: shouldDim && !highlightedNodeIds.has(n.id) ? 'dimmed' : '',
+            }))
+        );
+         setEdges(eds =>
+            eds.map(e => ({
+                ...e,
+                className: shouldDim && !connectedEdges.some(ce => ce.id === e.id) ? 'dimmed' : '',
+            }))
+        );
+
+    }, [searchTerm, nodes, edges, setNodes, setEdges]);
+
+
+    return (
+        <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            fitView
+            className="bg-transparent"
+            proOptions={{ hideAttribution: true }}
+            nodeTypes={nodeTypes}
+        >
+            <Background variant={BackgroundVariant.Dots} gap={24} size={1} />
+            <Controls />
+            <Panel position="top-right" className="p-0 m-2">
+                <Card className="glass-effect w-64">
+                    <CardContent className="p-2">
+                        <Input 
+                            type="text"
+                            placeholder="Search a node..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full"
+                        />
+                    </CardContent>
+                </Card>
+            </Panel>
+        </ReactFlow>
+    );
+};
+
+
+const CodeGraphView: React.FC = () => {
+  const { fileTree, repoUrl } = useContext(GithubContext);
+  const { settings } = useSettings();
+  const [graphData, setGraphData] = useState<{ nodes: Node[], edges: Edge[] } | null>(null);
+
+  const generateGraphOperation = useStreamingOperation(async () => {
+    if (!fileTree) {
+      throw new Error("A GitHub repository must be loaded first.");
     }
-  }, [fileTree, repoUrl, settings.isCacheEnabled, stagedFiles]);
-
-  const summarizeOperation = useAsyncOperation(async (node: Node | null) => {
-    if (!node) return null;
-    const prompt = `Based on the file path "${node.id}", what is the likely purpose of this file? Provide a one-sentence summary.`;
-    const { stream } = await supervisor.handleRequest(prompt, { fileTree, stagedFiles }, { setActiveView: () => {} }, 'chat-agent');
-    let content = '';
-    for await (const chunk of stream) {
-        if (chunk.type === 'content') content += chunk.content;
+    setGraphData(null); // Clear previous graph
+    
+    const cacheKey = `code-graph-v4::${repoUrl}`;
+    if (settings.isCacheEnabled) {
+      const cached = await cacheService.get<string>(cacheKey);
+      if (cached) {
+        console.log("CodeGraphView: Using cached version.");
+        const stream = async function*() {
+            yield { type: 'content' as const, content: cached };
+        }();
+        return { agent: CodeGraphAgent, stream };
+      }
     }
-    return content;
-  }, {
-      onError: (e) => console.error(e)
+
+    const prompt = "Generate a code graph for the current project structure.";
+    return supervisor.handleRequest(prompt, { fileTree, stagedFiles:[] }, { setActiveView: () => {} }, CodeGraphAgent.id);
   });
 
-  const onNodeMouseEnter = (_: React.MouseEvent, node: Node) => setHoveredNodeId(node.id);
-  const onNodeMouseLeave = () => setHoveredNodeId(null);
-  
   useEffect(() => {
-    if (!hoveredNodeId) {
-        setNodes(nds => nds.map(n => ({ ...n, className: '' })));
-        setEdges(eds => eds.map(e => ({ ...e, className: '' })));
-        return;
+    if (generateGraphOperation.content) {
+      try {
+        const parsed = JSON.parse(generateGraphOperation.content);
+        setGraphData(parsed);
+        if (settings.isCacheEnabled && repoUrl) {
+          const cacheKey = `code-graph-v4::${repoUrl}`;
+          cacheService.set(cacheKey, generateGraphOperation.content);
+        }
+      } catch (e) {
+        console.error("Failed to parse graph JSON:", e);
+      }
     }
-    const connectedEdges = edges.filter(e => e.source === hoveredNodeId || e.target === hoveredNodeId);
-    const connectedNodeIds = new Set(connectedEdges.flatMap(e => [e.source, e.target]));
-    
-    setNodes(nds =>
-        nds.map(n => ({
-            ...n,
-            className: n.id !== hoveredNodeId && !connectedNodeIds.has(n.id) ? 'dimmed' : '',
-        }))
-    );
-     setEdges(eds =>
-        eds.map(e => ({
-            ...e,
-            className: !connectedEdges.some(ce => ce.id === e.id) ? 'dimmed' : '',
-        }))
-    );
-
-  }, [hoveredNodeId, edges, setNodes, setEdges]);
+  }, [generateGraphOperation.content, settings.isCacheEnabled, repoUrl]);
 
 
   useEffect(() => {
-    if (!repoUrl) {
-      setNodes([]);
-      setEdges([]);
-      setError(null);
-      setSelectedNode(null);
-    }
-  }, [repoUrl]);
-  
-  const isButtonDisabled = isRepoLoading || isGraphLoading || !repoUrl;
-
-  const Legend = () => {
-      const nodeTypes = ['entry', 'view', 'component', 'service', 'config', 'other'];
-      return (
-        <Card className="glass-effect w-48">
-            <CardHeader className="p-3">
-                <CardTitle className="text-sm">Legend</CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 pt-0 space-y-1">
-                {nodeTypes.map(type => (
-                    <div key={type} className="flex items-center text-xs">
-                        <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: getNodeColor(type) }}></div>
-                        <span className="capitalize">{type}</span>
-                    </div>
-                ))}
-            </CardContent>
-        </Card>
-      )
-  };
-
+      if (repoUrl && fileTree) {
+        generateGraphOperation.execute();
+      }
+  }, [repoUrl, fileTree]);
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
-      <ViewHeader
-        icon={<CodeGraphIcon className="w-6 h-6" />}
-        title="Code Graph"
-        description="Visualize the architecture of your loaded GitHub repository."
-      />
-      
-      <div className="flex-1 relative">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onNodeClick={(_, node) => { setSelectedNode(node); summarizeOperation.reset(); }}
-          onNodeMouseEnter={onNodeMouseEnter}
-          onNodeMouseLeave={onNodeMouseLeave}
-          fitView
-          className="bg-background"
+        <ViewHeader
+            icon={<CodeGraphIcon className="w-6 h-6" />}
+            title="Code Graph"
+            description="Visualize your repository's architecture with a dynamic, force-directed graph."
         >
-          <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
-          <Controls />
-          <MiniMap nodeColor={(node) => getNodeColor(node.data.type)} nodeStrokeWidth={3} zoomable pannable />
-          <Panel position="bottom-left">
-            <Legend />
-          </Panel>
-        </ReactFlow>
+          {repoUrl && <Button onClick={generateGraphOperation.execute} disabled={generateGraphOperation.isLoading} variant="outline">Regenerate</Button>}
+        </ViewHeader>
+        <div className="flex-1 flex overflow-hidden">
+            {generateGraphOperation.thoughts && (
+                 <div className="w-1/4 p-4 border-r overflow-y-auto custom-scrollbar">
+                     <Card className="bg-muted/50 h-full">
+                        <CardHeader>
+                            <CardTitle className="text-base flex items-center gap-2"><BrainIcon className="w-4 h-4"/> Agent Thoughts</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-xs text-muted-foreground whitespace-pre-wrap font-mono">{generateGraphOperation.thoughts}</p>
+                        </CardContent>
+                    </Card>
+                 </div>
+            )}
+            <div className="flex-1 relative">
+                {generateGraphOperation.isLoading && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-20 animate-in">
+                        <LoaderIcon className="w-12 h-12 text-primary animate-spin" />
+                        <h2 className="text-xl font-semibold mt-6 text-foreground">Generating Code Graph...</h2>
+                        <p className="text-muted-foreground mt-2">The AI architect is analyzing your repository.</p>
+                    </div>
+                )}
 
-        <div className="absolute top-4 left-4 z-10 w-full max-w-sm">
-           <Card className="glass-effect">
-                <CardHeader>
-                    <CardTitle>Generate Project Graph</CardTitle>
-                </CardHeader>
-                <CardContent>
-                     <RepoStatusIndicator className="mb-4" />
-                    <Button onClick={handleGenerateGraph} disabled={isButtonDisabled} size="lg" className="w-full">
-                        {isGraphLoading ? 'Generating...' : 'Generate Graph'}
-                    </Button>
-                    {error && <p className="text-xs text-destructive mt-3">{error}</p>}
-                </CardContent>
-           </Card>
+                {!repoUrl && (
+                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+                        <EmptyState
+                            icon={<CodeGraphIcon className="w-12 h-12 text-foreground" />}
+                            title="Load a Repository"
+                            description="Go to the 'GitHub Inspector' tab to load a repository first."
+                        />
+                    </div>
+                )}
+                
+                {graphData && (
+                     <ReactFlowProvider>
+                        <Graph rawNodes={graphData.nodes} rawEdges={graphData.edges} />
+                    </ReactFlowProvider>
+                )}
+            </div>
         </div>
-
-        {selectedNode && (
-            <div className="absolute top-4 right-4 z-10 w-full max-w-sm">
-                <Card className="glass-effect animate-in">
-                    <CardHeader className="flex flex-row items-start justify-between p-4">
-                        <div className="space-y-1">
-                            <CardTitle className="text-base break-all">{selectedNode.data.label}</CardTitle>
-                            <CardDescription className="text-xs">Type: <span className="font-semibold capitalize" style={{color: getNodeColor(selectedNode.data.type)}}>{selectedNode.data.type}</span></CardDescription>
-                        </div>
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setSelectedNode(null)}>
-                            <CloseIcon className="h-4 w-4" />
-                        </Button>
-                    </CardHeader>
-                    <CardContent className="p-4 pt-0">
-                        <p className="text-xs text-muted-foreground break-all mb-4"><strong>Path:</strong> {selectedNode.id}</p>
-                        <div className="space-y-2">
-                             <Button onClick={() => summarizeOperation.execute(selectedNode)} disabled={summarizeOperation.isLoading} className="w-full">
-                                {summarizeOperation.isLoading ? 'Summarizing...' : 'Summarize File (AI)'}
-                            </Button>
-                            {summarizeOperation.data && <p className="text-sm bg-muted/50 p-3 rounded-md animate-in">{summarizeOperation.data}</p>}
-                            {summarizeOperation.error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md animate-in">Could not generate summary.</p>}
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-        )}
-
-        {isGraphLoading && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-20 animate-in">
-                <LoaderIcon className="w-12 h-12 text-primary animate-spin" />
-                <h2 className="text-xl font-semibold mt-6 text-foreground">Generating Code Graph...</h2>
-                <p className="text-muted-foreground mt-2">The AI architect is analyzing your repository structure.</p>
-                <p className="text-muted-foreground text-sm">This may take a moment.</p>
-            </div>
-        )}
-
-        {!isGraphLoading && nodes.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-                <EmptyState
-                    icon={<CodeGraphIcon className="w-12 h-12 text-foreground" />}
-                    title="Code Graph Visualizer"
-                    description={repoUrl 
-                        ? "Your project is loaded. Click the 'Generate Graph' button to visualize its structure."
-                        : "Go to the 'GitHub Inspector' tab to load a repository first, then come back here to generate the graph."}
-                />
-            </div>
-        )}
-      </div>
     </div>
   );
 };

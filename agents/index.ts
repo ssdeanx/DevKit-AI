@@ -1,5 +1,4 @@
 
-
 import { Agent } from "./types";
 import { ChatAgent } from "./ChatAgent";
 import { ReadmeAgent } from "./ReadmeAgent";
@@ -14,12 +13,14 @@ import { FunctionCallingAgent } from "./FunctionCallingAgent";
 import { PlannerAgent } from "./PlannerAgent";
 import { CodeGraphAgent } from "./CodeGraphAgent";
 import { MemoryAgent } from "./MemoryAgent";
+import { PullRequestAgent } from "./PullRequestAgent";
 
 export const initialAgents: Agent[] = [
     ChatAgent,
     PlannerAgent,
     ReadmeAgent,
     ProjectRulesAgent,
+    PullRequestAgent,
     ResearchAgent,
     RefinerAgent,
     IconPromptAgent,

@@ -36,6 +36,7 @@ export const ChatAgent: Agent = {
             topP: 0.9,
             thinkingConfig: {
                 includeThoughts: true,
+                thinkingBudget: -1,
             }
         }
     },

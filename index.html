@@ -266,7 +266,6 @@
           @apply bg-card/60 backdrop-blur-xl border border-border/20;
         }
         
-        /* New Card Style with Glowing Border */
         .card-glow-border {
             @apply bg-card border border-border/50 rounded-lg relative transition-all duration-300;
         }
@@ -281,7 +280,6 @@
             opacity: 1;
         }
         
-        /* Bento Grid Layout */
         .bento-grid {
             @apply grid grid-cols-4 auto-rows-[120px] gap-4;
         }
@@ -304,7 +302,6 @@
         .bento-item:nth-child(2) { @apply col-span-2; }
         .bento-item:nth-child(3) { @apply col-span-4; }
 
-        /* Custom Chat Bubbles */
         .chat-bubble {
             @apply p-3 rounded-xl max-w-[80%] relative;
         }
@@ -332,6 +329,44 @@
         .toast-root[data-variant="default"] {
              @apply border-success/50 bg-success/10;
         }
+        
+        .canvas-background {
+            background-image: linear-gradient(hsl(var(--border) / 0.3) 1px, transparent 1px), linear-gradient(to right, hsl(var(--border) / 0.3) 1px, transparent 1px);
+            background-size: 24px 24px;
+            background-color: hsl(var(--secondary) / 0.3);
+            border-radius: var(--radius);
+        }
+
+        .aurora-canvas {
+            position: relative;
+            overflow: hidden;
+        }
+        .aurora-canvas::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 200%;
+            height: 200%;
+            --aurora-start-x: -50%;
+            --aurora-start-y: -50%;
+            --aurora-mid-x: 50%;
+            --aurora-mid-y: 150%;
+            --aurora-end-x: -50%;
+            --aurora-end-y: -50%;
+            background: radial-gradient(ellipse at center, hsl(var(--dv-purple) / 0.1), transparent 40%),
+                        radial-gradient(ellipse at center, hsl(var(--dv-blue) / 0.1), transparent 40%);
+            animation: aurora-bg 80s infinite alternate linear;
+            z-index: 0;
+            pointer-events: none;
+        }
+        .react-flow__node, .react-flow__edge {
+            transition: opacity 0.3s ease, filter 0.3s ease;
+        }
+        .react-flow__node.dimmed, .react-flow__edge.dimmed {
+            opacity: 0.15;
+            filter: grayscale(1);
+        }
       }
     </style>
     <script type="importmap">
@@ -353,7 +388,7 @@
     "uuid": "https://esm.sh/uuid@^11.1.0",
     "framer-motion": "https://esm.sh/framer-motion@^11.3.19",
     "reactflow": "https://esm.sh/reactflow@^11.11.4",
-    "elkjs": "https://esm.sh/elkjs@^0.10.0"
+    "d3-force": "https://esm.sh/d3-force@^3.0.0"
   }
 }
 </script>

@@ -1,3 +1,4 @@
+
 # Getting Started: Your First 5 Minutes
 
 This guide will walk you through the essential first steps to get up and running with DevKit AI Pro. We'll load a repository, stage some files for context, and ask the AI a question about our code.
@@ -63,4 +64,4 @@ You'll also notice the **Agent Thoughts** panel, which gives you a peek into the
 **Congratulations!** You've just completed your first context-aware interaction with DevKit AI Pro. You can now explore other features like the **README Pro Generator** or the **Code Graph**, which will automatically use the context from your loaded repository.
 
 ---
-*Version 1.2.1*
+*Version 1.3.0*

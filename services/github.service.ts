@@ -20,6 +20,15 @@ class GithubService {
     return null;
   }
 
+  private parsePullRequestUrl(url: string): { owner: string; repo: string; pull_number: string } | null {
+    const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
+    if (match && match[1] && match[2] && match[3]) {
+      return { owner: match[1], repo: match[2], pull_number: match[3] };
+    }
+    return null;
+  }
+
+
   private buildFileTree(files: { path: string; type: string }[]): FileNode[] {
     const fileTree: FileNode[] = [];
     const map = new Map<string, FileNode>();
@@ -146,6 +155,45 @@ class GithubService {
 
     // Decode base64 content
     return atob(data.content);
+  }
+
+  async fetchPullRequestFiles(prUrl: string, apiKey?: string): Promise<StagedFile[]> {
+    const prInfo = this.parsePullRequestUrl(prUrl);
+    if (!prInfo) {
+      throw new Error("Invalid GitHub Pull Request URL.");
+    }
+    const { owner, repo, pull_number } = prInfo;
+
+    const headers: HeadersInit = { 'Accept': 'application/vnd.github.v3+json' };
+    if (apiKey) {
+      headers['Authorization'] = `token ${apiKey}`;
+    }
+
+    const filesUrl = `https://api.github.com/repos/${owner}/${repo}/pulls/${pull_number}/files`;
+    const response = await fetch(filesUrl, { headers });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch PR file list (Status: ${response.status})`);
+    }
+
+    const filesData = await response.json();
+    
+    const changedFiles: StagedFile[] = [];
+    
+    // For simplicity, we fetch the full content of each changed file.
+    // A more advanced implementation might use the 'patch' data to show diffs.
+    for (const file of filesData) {
+        if (file.status !== 'removed') { // We can't review removed files
+            try {
+                const content = await this.fetchFileContent(`https://github.com/${owner}/${repo}`, file.filename, apiKey);
+                changedFiles.push({ path: file.filename, content });
+            } catch (error) {
+                console.warn(`Could not fetch content for ${file.filename}, skipping.`, error);
+            }
+        }
+    }
+
+    return changedFiles;
   }
 }
 

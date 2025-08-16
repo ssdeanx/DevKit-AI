@@ -1,3 +1,4 @@
+
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Type, Part, Content } from '@google/genai';
@@ -6,6 +7,7 @@ const AGENT_DEFINITIONS = [
     { name: 'ChatAgent', description: 'A general-purpose agent for conversations, answering questions, and providing explanations on a wide range of topics. Use for general queries.' },
     { name: 'ReadmeAgent', description: 'A specialized agent that generates professional, well-structured README.md files for software projects. Ideal for creating documentation from scratch.' },
     { name: 'ProjectRulesAgent', description: 'Generates a "Project Constitution" for AI agents, defining coding standards and architectural patterns based on the repository.' },
+    { name: 'PullRequestAgent', description: 'A specialized agent that reviews code changes in a pull request, providing feedback on bugs, style, and best practices.' },
     { name: 'ResearchAgent', description: 'Uses Google Search to answer questions about recent events, or topics that require up-to-date information from the web.' },
     { name: 'RefinerAgent', description: 'Refines, rewrites, or improves existing text. Provide it with content and instructions (e.g., "make this more professional").' },
     { name: 'IconPromptAgent', description: 'Takes a simple idea (e.g., "a logo for a space company") and generates detailed, descriptive prompts for an AI image generator.' },
@@ -90,6 +92,7 @@ export const PlannerAgent: Agent = {
             responseSchema: responseSchema,
              thinkingConfig: {
                 includeThoughts: true,
+                thinkingBudget: -1,
             }
         }
     },

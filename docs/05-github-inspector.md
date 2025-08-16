@@ -1,3 +1,4 @@
+
 # GitHub Inspector: Providing Context to the AI
 
 The **GitHub Inspector** is arguably the most important view in DevKit AI Pro. It's the bridge between your project's source code and the AI's understanding. By loading a repository and "staging" files, you are providing the critical context the AI needs to give you relevant, accurate, and useful answers.
@@ -53,4 +54,4 @@ graph TD
 By providing context, you elevate the AI from a generic search engine to a true pair programmer that understands the nuances of your project.
 
 ---
-*Version 1.2.1*
+*Version 1.3.0*
