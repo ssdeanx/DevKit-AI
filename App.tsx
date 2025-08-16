@@ -17,6 +17,7 @@ import { DocumentIcon } from './components/icons';
 import MemoryView from './views/MemoryView';
 import { ToastProvider } from './context/ToastContext';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
+import DocumentationView from './views/DocumentationView';
 
 export type ViewName = 
   | 'chat' 
@@ -27,6 +28,7 @@ export type ViewName =
   | 'github-inspector'
   | 'code-graph'
   | 'agent-memory'
+  | 'documentation'
   | 'history' 
   | 'settings';
 
@@ -101,6 +103,8 @@ const App: React.FC = () => {
         return <MemoryView />;
       case 'history':
         return <HistoryView />;
+      case 'documentation':
+        return <DocumentationView />;
       default:
         return <ChatView setActiveView={setActiveView} />;
     }

@@ -2,7 +2,7 @@
 
 import React, { useContext } from 'react';
 import { ViewName } from '../App';
-import { ChatIcon, DocumentIcon, ImageIcon, GithubIcon, HistoryIcon, SettingsIcon, CodeGraphIcon, LogoIcon, SunIcon, MoonIcon, DatabaseIcon } from './icons';
+import { ChatIcon, DocumentIcon, ImageIcon, GithubIcon, HistoryIcon, SettingsIcon, CodeGraphIcon, LogoIcon, SunIcon, MoonIcon, DatabaseIcon, BookOpenIcon } from './icons';
 import { Button } from './ui/Button';
 import { cn } from '../lib/utils';
 import { GithubContext } from '../context/GithubContext';
@@ -96,6 +96,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
         { id: 'agent-memory', label: 'Agent Memory', icon: <DatabaseIcon />, group: 'PROJECT' },
         
         // App
+        { id: 'documentation', label: 'Documentation', icon: <BookOpenIcon />, group: 'APP' },
         { id: 'history', label: 'History', icon: <HistoryIcon />, group: 'APP' },
         { id: 'settings', label: 'Settings', icon: <SettingsIcon />, group: 'APP' },
     ];

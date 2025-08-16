@@ -1,0 +1,33 @@
+{
+    "title": "DevKit AI Pro Documentation",
+    "version": "1.2.1",
+    "lastUpdated": "2025-08-16",
+    "sections": [
+        {
+            "title": "Fundamentals",
+            "pages": [
+                { "path": "docs/01-introduction.md", "title": "Introduction", "subtitle": "What is DevKit AI Pro?" },
+                { "path": "docs/02-getting-started.md", "title": "Getting Started", "subtitle": "Your first five minutes." },
+                { "path": "docs/03-core-concepts.md", "title": "Core Concepts", "subtitle": "The Agentic Workflow." }
+            ]
+        },
+        {
+            "title": "Core Features",
+            "pages": [
+                { "path": "docs/04-the-agents.md", "title": "Meet the Agents", "subtitle": "Your specialized AI team." },
+                { "path": "docs/05-github-inspector.md", "title": "GitHub Inspector", "subtitle": "Providing context to the AI." },
+                { "path": "docs/06-generators.md", "title": "Content Generators", "subtitle": "Create READMEs, icons & more." },
+                { "path": "docs/07-settings-and-customization.md", "title": "Settings & Customization", "subtitle": "Fine-tune the application." }
+            ]
+        },
+        {
+            "title": "Reference & Guides",
+            "pages": [
+                { "path": "docs/08-best-practices.md", "title": "Best Practices", "subtitle": "Tips for effective use." },
+                { "path": "docs/09-architecture-overview.md", "title": "Architecture Overview", "subtitle": "A technical deep-dive." },
+                { "path": "docs/10-whats-new.md", "title": "What's New?", "subtitle": "Changelog and updates." },
+                { "path": "docs/11-troubleshooting.md", "title": "Troubleshooting & FAQ", "subtitle": "Common questions answered." }
+            ]
+        }
+    ]
+}

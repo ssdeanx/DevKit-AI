@@ -7,7 +7,7 @@ import { ClipboardCopyIcon, CheckCircleIcon } from './icons';
 
 // Declare mermaid for TypeScript
 declare const mermaid: {
-    render: (id: string, text: string, callback: (svgCode: string) => void) => void;
+    run: () => void;
 };
 
 const CodeBlock = ({ className, children }: { className?: string; children: React.ReactNode }) => {
@@ -15,28 +15,9 @@ const CodeBlock = ({ className, children }: { className?: string; children: Reac
     const lang = match ? match[1] : 'text';
     const codeContent = String(children).replace(/\n$/, '');
     
-    const mermaidRef = useRef<HTMLDivElement>(null);
-    const hasRendered = useRef(false);
     const [isCopied, setIsCopied] = useState(false);
 
-    useEffect(() => {
-        if (lang === 'mermaid' && mermaidRef.current && !hasRendered.current) {
-            try {
-                const id = `mermaid-svg-${Math.random().toString(36).substring(2, 9)}`;
-                mermaid.render(id, codeContent, (svgCode) => {
-                    if (mermaidRef.current) {
-                        mermaidRef.current.innerHTML = svgCode;
-                        hasRendered.current = true;
-                    }
-                });
-            } catch (error) {
-                console.error("Mermaid rendering error:", error);
-                if (mermaidRef.current) {
-                    mermaidRef.current.innerText = "Error rendering Mermaid diagram.";
-                }
-            }
-        }
-    }, [codeContent, lang]);
+    // MERMAID RENDERING IS NOW HANDLED BY THE PARENT COMPONENT'S useEffect
 
     const handleCopy = () => {
         navigator.clipboard.writeText(codeContent);
@@ -47,7 +28,8 @@ const CodeBlock = ({ className, children }: { className?: string; children: Reac
     if (lang === 'mermaid') {
         return (
              <div className="bg-background rounded-md my-2 p-4 flex justify-center items-center">
-                <div ref={mermaidRef} className="mermaid">{codeContent}</div>
+                {/* This div is now targeted by mermaid.run() */}
+                <div className="mermaid">{codeContent}</div>
              </div>
         )
     }
@@ -65,13 +47,9 @@ const CodeBlock = ({ className, children }: { className?: string; children: Reac
                     data-tooltip={isCopied ? "Copied!" : "Copy code"}
                 >
                     {isCopied ? (
-                        <>
-                            <CheckCircleIcon className="w-3 h-3 mr-1" />
-                        </>
+                        <CheckCircleIcon className="w-3 h-3 mr-1" />
                     ) : (
-                         <>
-                            <ClipboardCopyIcon className="w-3 h-3 mr-1" />
-                        </>
+                        <ClipboardCopyIcon className="w-3 h-3 mr-1" />
                     )}
                 </Button>
             </div>
@@ -84,10 +62,32 @@ const CodeBlock = ({ className, children }: { className?: string; children: Reac
 
 
 const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
+
+    // THIS IS THE FIX:
+    // This effect runs after the markdown content has been rendered to the DOM.
+    // It finds all elements with the "mermaid" class and tells the mermaid library to render them.
+    // This is more robust than trying to render each diagram individually.
+    useEffect(() => {
+        try {
+            if ((window as any).mermaid) {
+                (window as any).mermaid.run();
+            }
+        } catch(e) {
+            console.error("Error rendering mermaid diagrams", e);
+        }
+    }, [content]); // Re-run this effect whenever the markdown content changes
+
     return (
         <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
+                h1: ({node, ...props}) => <h1 className="text-3xl font-bold my-4 pb-2 border-b" {...props} />,
+                h2: ({node, ...props}) => <h2 className="text-2xl font-semibold my-3 pb-2 border-b" {...props} />,
+                h3: ({node, ...props}) => <h3 className="text-xl font-semibold my-2" {...props} />,
+                p: ({node, ...props}) => <p className="my-4 leading-relaxed" {...props} />,
+                ul: ({node, ...props}) => <ul className="list-disc pl-6 my-4 space-y-2" {...props} />,
+                ol: ({node, ...props}) => <ol className="list-decimal pl-6 my-4 space-y-2" {...props} />,
+                li: ({node, ...props}) => <li className="my-1" {...props} />,
                 code({ node, inline, className, children, ...props }: any) {
                     return !inline ? (
                         <CodeBlock className={className}>{children}</CodeBlock>
@@ -97,11 +97,12 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
                         </code>
                     );
                 },
-                table: ({node, ...props}) => <table className="table-auto w-full my-2 border-collapse border border-border" {...props} />,
+                table: ({node, ...props}) => <div className="overflow-x-auto"><table className="table-auto w-full my-4 border-collapse border border-border" {...props} /></div>,
                 thead: ({node, ...props}) => <thead className="bg-muted" {...props} />,
                 th: ({node, ...props}) => <th className="border border-border px-4 py-2 text-left font-semibold" {...props} />,
                 td: ({node, ...props}) => <td className="border border-border px-4 py-2" {...props} />,
                 a: ({node, ...props}) => <a className="text-primary underline hover:no-underline" {...props} />,
+                hr: ({node, ...props}) => <hr className="my-6 border-border" {...props} />,
             }}
         >
             {content}
