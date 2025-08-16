@@ -11,6 +11,40 @@ export interface StagedFile {
     content: string;
 }
 
+export interface PullRequestSummary {
+    title: string;
+    url: string;
+    repo: string;
+    number: number;
+}
+
+export interface RepoSearchResult {
+    id: number;
+    fullName: string;
+    description: string;
+    stars: number;
+    url: string;
+}
+
+export interface CodeSearchResult {
+    repo: string;
+    path: string;
+    url: string;
+}
+
+export interface IssueDetails {
+    title: string;
+    body: string;
+    url: string;
+    repo: string;
+}
+
+export interface RepoLabel {
+    name: string;
+    color: string;
+    description: string | null;
+}
+
 class GithubService {
   private parseRepoUrl(url: string): { owner: string; repo: string } | null {
     const match = url.match(/github\.com\/([^/]+)\/([^/.\s]+)/);
@@ -24,6 +58,14 @@ class GithubService {
     const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
     if (match && match[1] && match[2] && match[3]) {
       return { owner: match[1], repo: match[2], pull_number: match[3] };
+    }
+    return null;
+  }
+  
+  private parseIssueUrl(url: string): { owner: string; repo: string; issue_number: string } | null {
+    const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)/);
+    if (match && match[1] && match[2] && match[3]) {
+      return { owner: match[1], repo: match[2], issue_number: match[3] };
     }
     return null;
   }
@@ -194,6 +236,119 @@ class GithubService {
     }
 
     return changedFiles;
+  }
+
+  async fetchUserPullRequests(apiKey: string): Promise<PullRequestSummary[]> {
+      if (!apiKey) {
+        throw new Error("A GitHub API key is required to fetch your pull requests.");
+      }
+      
+      const headers: HeadersInit = { 
+          'Accept': 'application/vnd.github.v3+json',
+          'Authorization': `token ${apiKey}`
+      };
+
+      // 1. Get the authenticated user's login name
+      const userResponse = await fetch('https://api.github.com/user', { headers });
+      if (!userResponse.ok) {
+          throw new Error('Failed to authenticate with the provided API key.');
+      }
+      const userData = await userResponse.json();
+      const login = userData.login;
+
+      // 2. Search for open PRs assigned to the user
+      const searchUrl = `https://api.github.com/search/issues?q=is:pr+is:open+assignee:${login}`;
+      const prResponse = await fetch(searchUrl, { headers });
+
+      if (!prResponse.ok) {
+          throw new Error(`Failed to fetch pull requests (Status: ${prResponse.status}).`);
+      }
+      
+      const prData = await prResponse.json();
+
+      return prData.items.map((pr: any) => ({
+          title: pr.title,
+          url: pr.html_url,
+          number: pr.number,
+          repo: pr.repository_url.split('/').slice(-2).join('/'),
+      }));
+  }
+
+  async searchRepositories(query: string, apiKey: string): Promise<RepoSearchResult[]> {
+      if (!apiKey) throw new Error("A GitHub API key is required for repository search.");
+      const headers: HeadersInit = { 'Accept': 'application/vnd.github.v3+json', 'Authorization': `token ${apiKey}` };
+      const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=10`;
+      const response = await fetch(url, { headers });
+      if (!response.ok) throw new Error(`Failed to search repositories (Status: ${response.status})`);
+      const data = await response.json();
+      return data.items.map((item: any) => ({
+        id: item.id,
+        fullName: item.full_name,
+        description: item.description,
+        stars: item.stargazers_count,
+        url: item.html_url,
+      }));
+  }
+
+  async searchCode(query: string, apiKey: string): Promise<CodeSearchResult[]> {
+    if (!apiKey) throw new Error("A GitHub API key is required for code search.");
+    const headers: HeadersInit = { 'Accept': 'application/vnd.github.v3+json', 'Authorization': `token ${apiKey}` };
+    const url = `https://api.github.com/search/code?q=${encodeURIComponent(query)}&per_page=5`;
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error(`Failed to search code (Status: ${response.status})`);
+    const data = await response.json();
+    return data.items.map((item: any) => ({
+      repo: item.repository.full_name,
+      path: item.path,
+      url: item.html_url,
+    }));
+  }
+  
+  async fetchIssueDetails(issueUrl: string, apiKey: string): Promise<IssueDetails> {
+    const issueInfo = this.parseIssueUrl(issueUrl);
+    if (!issueInfo) throw new Error("Invalid GitHub Issue URL.");
+    const { owner, repo, issue_number } = issueInfo;
+    
+    const headers: HeadersInit = { 'Accept': 'application/vnd.github.v3+json', 'Authorization': `token ${apiKey}` };
+    const url = `https://api.github.com/repos/${owner}/${repo}/issues/${issue_number}`;
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error(`Failed to fetch issue details (Status: ${response.status})`);
+    const data = await response.json();
+    return { title: data.title, body: data.body, url: data.html_url, repo: `${owner}/${repo}` };
+  }
+  
+  async fetchRepoLabels(repoFullName: string, apiKey: string): Promise<RepoLabel[]> {
+    const headers: HeadersInit = { 'Accept': 'application/vnd.github.v3+json', 'Authorization': `token ${apiKey}` };
+    const url = `https://api.github.com/repos/${repoFullName}/labels`;
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error(`Failed to fetch repo labels (Status: ${response.status})`);
+    const data = await response.json();
+    return data.map((label: any) => ({
+        name: label.name,
+        color: label.color,
+        description: label.description
+    }));
+  }
+
+  async setIssueLabels(issueUrl: string, labels: string[], apiKey: string): Promise<{ success: boolean }> {
+      const issueInfo = this.parseIssueUrl(issueUrl);
+      if (!issueInfo) throw new Error("Invalid GitHub Issue URL.");
+      const { owner, repo, issue_number } = issueInfo;
+
+      const headers: HeadersInit = { 
+          'Accept': 'application/vnd.github.v3+json', 
+          'Authorization': `token ${apiKey}`,
+          'Content-Type': 'application/json'
+      };
+      const url = `https://api.github.com/repos/${owner}/${repo}/issues/${issue_number}/labels`;
+      const response = await fetch(url, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ labels })
+      });
+
+      if (!response.ok) throw new Error(`Failed to set issue labels (Status: ${response.status})`);
+      return { success: true };
   }
 }
 

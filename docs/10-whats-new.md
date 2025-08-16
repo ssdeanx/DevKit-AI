@@ -5,6 +5,20 @@ This page tracks major updates, new features, and improvements to DevKit AI Pro.
 
 ---
 
+### **Version 1.4.0**
+*Date: August 18, 2025*
+
+This is a major intelligence and workflow upgrade, focusing on advanced Gemini capabilities and deeper GitHub integration.
+
+**✨ New Features & Improvements:**
+-   **New Feature: Vision-Powered Image Refinement:** The Icon and Logo generators now feature a **"Refine with AI"** button. This allows you to provide text feedback on a generated image, which a new multimodal AI agent uses to create an improved prompt for an iterative design workflow.
+-   **New Feature: AI Issue Labeler:** A new tool in the "GitHub Pro" section that analyzes a GitHub issue URL and uses an AI agent to suggest and apply the most relevant labels from your repository.
+-   **Smarter Chat Agent:** The main `ChatAgent` is now empowered with a **GitHub Code Search** tool. It can now find real-world code examples directly from GitHub when you ask.
+-   **Enhanced AI Core:** Enabled Gemini's **`AUTO` function-calling mode** for key agents, allowing the model more autonomy to decide when to use its tools for more intelligent and responsive behavior.
+-   **Flexible GitHub Pro View:** The GitHub Pro section is now accessible to all users, with premium API-dependent features intelligently disabled with tooltips if no API key is present.
+
+---
+
 ### **Version 1.3.0**
 *Date: August 16, 2025*
 
@@ -20,38 +34,4 @@ This is a major feature release focused on deep workflow integration and visuali
     -   **Node Icons:** Added file-type-specific icons directly within each graph node for better readability.
 
 ---
-
-### **Version 1.2.1**
-*Date: August 16, 2025*
-
-This is a maintenance release to improve documentation accuracy.
-
-**🔧 Fixes & Updates:**
--   **Corrected Diagram:** Fixed a syntax error in the Mermaid flowchart on the "Best Practices" page.
--   **Updated Timestamps:** All documentation timestamps have been synchronized to the current date.
-
----
-
-### **Version 1.2.0**
-*Date: August 2, 2024*
-
-This release focuses on a major overhaul of the in-app documentation to improve usability, structure, and content depth.
-
-**✨ New Features & Improvements:**
--   **Categorized Documentation:** The documentation sidebar is now organized into logical sections ("Fundamentals", "Core Features", etc.) for easier navigation.
--   **New Doc: Troubleshooting & FAQ:** Added a dedicated page to proactively address common user issues like GitHub API rate limiting.
--   **New Doc: What's New?:** This changelog was created to keep you informed of updates!
--   **Enhanced Readability:** Added descriptive subtitles to all documentation pages in the navigation.
--   **Content Enhancements:**
-    -   Embedded cross-links between related articles to improve discoverability.
-    -   Added "Pro Tip" and "Warning" callouts to highlight key information.
-
----
-
-### **Version 1.0.0**
-*Date: July 30, 2024*
-
-Initial release of DevKit AI Pro.
-
----
-*Version 1.3.0*
+*Version 1.4.0*

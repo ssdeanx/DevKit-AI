@@ -1,5 +1,8 @@
-import React, { createContext, useState, useCallback, ReactNode } from 'react';
+
+import React, { createContext, useState, useCallback, ReactNode, useEffect } from 'react';
 import { githubService, FileNode, StagedFile } from '../services/github.service';
+
+const GITHUB_API_KEY_STORAGE_KEY = 'devkit-github-api-key';
 
 interface GithubContextType {
   repoUrl: string;
@@ -7,12 +10,14 @@ interface GithubContextType {
   stagedFiles: StagedFile[];
   isLoading: boolean;
   error: string | null;
-  fetchRepo: (url: string, apiKey?: string) => Promise<void>;
-  stageFile: (path: string, apiKey?: string) => Promise<void>;
+  apiKey: string;
+  setApiKey: (key: string) => void;
+  fetchRepo: (url: string) => Promise<void>;
+  stageFile: (path: string) => Promise<void>;
   unstageFile: (path: string) => void;
-  stageFolder: (path: string, apiKey?: string) => Promise<void>;
+  stageFolder: (path: string) => Promise<void>;
   unstageFolder: (path: string) => void;
-  stageAllFiles: (apiKey?: string) => Promise<void>;
+  stageAllFiles: () => Promise<void>;
   unstageAllFiles: () => void;
 }
 
@@ -22,6 +27,8 @@ export const GithubContext = createContext<GithubContextType>({
   stagedFiles: [],
   isLoading: false,
   error: null,
+  apiKey: '',
+  setApiKey: () => {},
   fetchRepo: async () => {},
   stageFile: async () => {},
   unstageFile: () => {},
@@ -63,8 +70,13 @@ export const GithubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem(GITHUB_API_KEY_STORAGE_KEY) || '');
 
-  const fetchRepo = useCallback(async (url: string, apiKey?: string) => {
+  useEffect(() => {
+      localStorage.setItem(GITHUB_API_KEY_STORAGE_KEY, apiKey);
+  }, [apiKey]);
+
+  const fetchRepo = useCallback(async (url: string) => {
     setIsLoading(true);
     setError(null);
     setFileTree(null);
@@ -78,9 +90,9 @@ export const GithubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [apiKey]);
 
-  const stageFile = useCallback(async (path: string, apiKey?: string) => {
+  const stageFile = useCallback(async (path: string) => {
     if (stagedFiles.some(f => f.path === path)) return; // Already staged
     setError(null);
     try {
@@ -89,13 +101,13 @@ export const GithubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     } catch (e: any) {
         setError(e.message || `Failed to fetch file: ${path}`);
     }
-  }, [repoUrl, stagedFiles]);
+  }, [repoUrl, stagedFiles, apiKey]);
 
   const unstageFile = useCallback((path: string) => {
     setStagedFiles(prev => prev.filter(f => f.path !== path));
   }, []);
 
-  const stageFolder = useCallback(async (path: string, apiKey?: string) => {
+  const stageFolder = useCallback(async (path: string) => {
     if (!fileTree || !repoUrl) return;
     const folderNode = findNodeByPath(fileTree, path);
     if (!folderNode || folderNode.type !== 'dir') return;
@@ -118,7 +130,7 @@ export const GithubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     } catch (e: any) {
         setError(e.message || `Failed to fetch some files in ${path}`);
     }
-  }, [fileTree, repoUrl, stagedFiles]);
+  }, [fileTree, repoUrl, stagedFiles, apiKey]);
 
   const unstageFolder = useCallback((path: string) => {
     if (!fileTree) return;
@@ -129,7 +141,7 @@ export const GithubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setStagedFiles(prev => prev.filter(sf => !filePathsInFolder.includes(sf.path)));
   }, [fileTree]);
 
-  const stageAllFiles = useCallback(async (apiKey?: string) => {
+  const stageAllFiles = useCallback(async () => {
     if (!fileTree || !repoUrl) return;
 
     const allFilePaths: string[] = [];
@@ -156,7 +168,7 @@ export const GithubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     } catch (e: any) {
         setError(e.message || "Failed to stage all files.");
     }
-  }, [fileTree, repoUrl]);
+  }, [fileTree, repoUrl, apiKey]);
   
   const unstageAllFiles = useCallback(() => {
     setStagedFiles([]);
@@ -164,7 +176,7 @@ export const GithubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
 
   return (
-    <GithubContext.Provider value={{ repoUrl, fileTree, stagedFiles, isLoading, error, fetchRepo, stageFile, unstageFile, stageFolder, unstageFolder, stageAllFiles, unstageAllFiles }}>
+    <GithubContext.Provider value={{ repoUrl, fileTree, stagedFiles, isLoading, error, apiKey, setApiKey, fetchRepo, stageFile, unstageFile, stageFolder, unstageFolder, stageAllFiles, unstageAllFiles }}>
       {children}
     </GithubContext.Provider>
   );

@@ -1,7 +1,4 @@
 
-
-
-
 import { orchestrator } from './orchestrator';
 import { Agent, AgentExecuteStream, WorkflowPlan } from '../agents/types';
 import { agentService } from './agent.service';
@@ -72,6 +69,25 @@ const availableTools: { [key: string]: Function } = {
         } catch(e: any) {
             return { success: false, message: `Error searching code on GitHub: ${e.message}` };
         }
+    },
+    searchGithubIssues: async (args: { issueUrl: string }, _callbacks: any, apiKey: string) => {
+         if (!apiKey) return { success: false, message: "Error: GitHub API key is required." };
+         try {
+            const details = await githubService.fetchIssueDetails(args.issueUrl, apiKey);
+            const labels = await githubService.fetchRepoLabels(details.repo, apiKey);
+            return { success: true, issue: details, availableLabels: labels };
+         } catch(e: any) {
+            return { success: false, message: `Error fetching issue details: ${e.message}` };
+         }
+    },
+    setGithubIssueLabels: async (args: { issueUrl: string, labels: string[] }, _callbacks: any, apiKey: string) => {
+        if (!apiKey) return { success: false, message: "Error: GitHub API key is required." };
+        try {
+            const result = await githubService.setIssueLabels(args.issueUrl, args.labels, apiKey);
+            return result;
+        } catch(e: any) {
+            return { success: false, message: `Error setting issue labels: ${e.message}` };
+        }
     }
 };
 
@@ -84,7 +100,6 @@ class Supervisor {
     callbacks: { setActiveView: (view: ViewName) => void },
     forceAgentId?: string,
     retryContext?: RetryContext,
-    initialContents?: Content[]
   ): Promise<{ agent: Agent; stream: AgentExecuteStream }> {
     try {
         this.apiKey = githubContext.apiKey || ''; // Store apiKey for this request
@@ -153,22 +168,19 @@ class Supervisor {
             contextParts.push({ text: gitContextString });
         }
 
+        // Construct the final prompt
         const finalPromptParts: Part[] = [
             ...contextParts,
             { text: `Based on all the context provided, please handle the following user request:\n\n[USER REQUEST]:\n"${effectivePrompt}"` }
         ];
-        
-        const finalContents: Content[] = initialContents 
-            ? initialContents
-            : [{ role: 'user', parts: finalPromptParts }];
 
         if (selectedAgent.id === PlannerAgent.id) {
             console.log(`Supervisor: Executing multi-step plan with ${selectedAgent.name}.`);
-            const stream = this.executePlan(selectedAgent, finalContents, callbacks, contextParts, effectivePrompt);
+            const stream = this.executePlan(selectedAgent, finalPromptParts, callbacks, contextParts, effectivePrompt);
             return { agent: selectedAgent, stream };
         } else {
             console.log(`Supervisor: Executing single agent ${selectedAgent.name} with function calling.`);
-            const stream = this.executeAgentWithFunctionCalling(selectedAgent, finalContents, callbacks);
+            const stream = this.executeAgentWithFunctionCalling(selectedAgent, finalPromptParts, callbacks);
             return { agent: selectedAgent, stream };
         }
     } catch(error) {
@@ -185,14 +197,15 @@ class Supervisor {
 
   private async *executePlan(
     planner: Agent,
-    contents: Content[],
+    prompt: string | Part[],
     callbacks: { setActiveView: (view: ViewName) => void; },
     baseContextParts: Part[],
     originalUserPrompt: string,
   ): AgentExecuteStream {
     // Step 1: Get the plan from the PlannerAgent
     console.log("Supervisor (Plan): Requesting plan from PlannerAgent.");
-    const planStream = planner.execute(contents);
+    const plannerContents: Content[] = [{ role: 'user', parts: Array.isArray(prompt) ? prompt : [{ text: prompt as string }] }];
+    const planStream = planner.execute(plannerContents);
     let planJsonString = '';
     for await (const chunk of planStream) {
         if (chunk.type === 'content') {
@@ -255,10 +268,9 @@ Please perform your task and provide the output.
 `;
             
             const subAgentPromptParts: Part[] = [...baseContextParts, { text: subAgentPromptText }];
-            const subAgentContents: Content[] = [{ role: 'user', parts: subAgentPromptParts }];
 
             try {
-                const agentStream = this.executeAgentWithFunctionCalling(agentToExecute, subAgentContents, callbacks);
+                const agentStream = this.executeAgentWithFunctionCalling(agentToExecute, subAgentPromptParts, callbacks);
                 for await (const chunk of agentStream) {
                     yield { ...chunk, agentName: agentToExecute.name };
                     if (chunk.type === 'content') {
@@ -289,11 +301,14 @@ Please perform your task and provide the output.
 
   private async *executeAgentWithFunctionCalling(
     agent: Agent,
-    contents: Content[],
+    prompt: string | Part[],
     callbacks: { setActiveView: (view: ViewName) => void; }
   ): AgentExecuteStream {
     
-    const history: Content[] = structuredClone(contents);
+    const history: Content[] = [{
+        role: 'user',
+        parts: Array.isArray(prompt) ? structuredClone(prompt) : [{text: prompt as string}]
+    }];
     const MAX_TURNS = 10;
     let currentTurn = 0;
 

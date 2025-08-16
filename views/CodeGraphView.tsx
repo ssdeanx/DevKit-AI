@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useContext, useCallback, useEffect, useMemo } from 'react';
 import ReactFlow, {
   Controls,
@@ -209,7 +210,7 @@ const Graph: React.FC<{ rawNodes: Node[], rawEdges: Edge[] }> = ({ rawNodes, raw
 
 
 const CodeGraphView: React.FC = () => {
-  const { fileTree, repoUrl } = useContext(GithubContext);
+  const { fileTree, repoUrl, apiKey } = useContext(GithubContext);
   const { settings } = useSettings();
   const [graphData, setGraphData] = useState<{ nodes: Node[], edges: Edge[] } | null>(null);
 
@@ -232,7 +233,7 @@ const CodeGraphView: React.FC = () => {
     }
 
     const prompt = "Generate a code graph for the current project structure.";
-    return supervisor.handleRequest(prompt, { fileTree, stagedFiles:[] }, { setActiveView: () => {} }, CodeGraphAgent.id);
+    return supervisor.handleRequest(prompt, { fileTree, stagedFiles:[], apiKey }, { setActiveView: () => {} }, CodeGraphAgent.id);
   });
 
   useEffect(() => {

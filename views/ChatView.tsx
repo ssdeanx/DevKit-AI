@@ -121,7 +121,7 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
   const [isLoading, setIsLoading] = useState(false);
   const [workflowPlan, setWorkflowPlan] = useState<WorkflowStep[] | null>(null);
   const [feedbackModal, setFeedbackModal] = useState<FeedbackModalState>({ isOpen: false, messageId: null, feedbackText: '' });
-  const { repoUrl, fileTree, stagedFiles } = useContext(GithubContext);
+  const { repoUrl, fileTree, stagedFiles, apiKey } = useContext(GithubContext);
   const scrollRef = useAutoScroll([messages, workflowPlan]);
 
   useEffect(() => {
@@ -136,7 +136,7 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
     let finalAiMessage: Message | null = null;
 
     try {
-        const { agent, stream } = await supervisor.handleRequest(prompt, { fileTree, stagedFiles }, { setActiveView }, undefined, retryContext);
+        const { agent, stream } = await supervisor.handleRequest(prompt, { fileTree, stagedFiles, apiKey }, { setActiveView }, undefined, retryContext);
         finalAgentName = agent.name;
       
         const aiMessageId = `ai-${Date.now()}`;

@@ -1,8 +1,8 @@
 
 {
     "title": "DevKit AI Pro Documentation",
-    "version": "1.3.0",
-    "lastUpdated": "2025-08-16",
+    "version": "1.4.0",
+    "lastUpdated": "2025-08-18",
     "sections": [
         {
             "title": "Fundamentals",
@@ -24,7 +24,7 @@
         {
             "title": "GitHub Pro",
             "pages": [
-                 { "path": "docs/12-pull-request-reviewer.md", "title": "PR Reviewer", "subtitle": "Automated code reviews." }
+                 { "path": "docs/13-github-pro-tools.md", "title": "GitHub Pro Tools", "subtitle": "PR Reviewer & Issue Labeler" }
             ]
         },
         {

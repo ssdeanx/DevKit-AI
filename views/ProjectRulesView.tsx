@@ -1,4 +1,5 @@
 
+
 import React, { useState, useContext, useEffect } from 'react';
 import { supervisor } from '../services/supervisor';
 import { GithubContext } from '../context/GithubContext';
@@ -18,7 +19,7 @@ import { useStreamingOperation } from '../hooks/useStreamingOperation';
 
 const ProjectRulesView: React.FC = () => {
   const [request, setRequest] = useState('');
-  const { fileTree, repoUrl, stagedFiles } = useContext(GithubContext);
+  const { fileTree, repoUrl, stagedFiles, apiKey } = useContext(GithubContext);
   const { settings } = useSettings();
 
   const generateDocOperation = useStreamingOperation(async () => {
@@ -39,7 +40,7 @@ const ProjectRulesView: React.FC = () => {
     }
 
     console.log(`ProjectRulesView: Generating document for request: "${request}" (no cache)`);
-    return supervisor.handleRequest(request, { fileTree, stagedFiles }, { setActiveView: () => {} }, ProjectRulesAgent.id);
+    return supervisor.handleRequest(request, { fileTree, stagedFiles, apiKey }, { setActiveView: () => {} }, ProjectRulesAgent.id);
   });
   
   // Cache the result after a successful operation

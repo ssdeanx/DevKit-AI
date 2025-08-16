@@ -1,4 +1,5 @@
 
+
 import React, { useState, useContext, useEffect } from 'react';
 import { supervisor } from '../services/supervisor';
 import { GithubContext } from '../context/GithubContext';
@@ -18,7 +19,7 @@ import { cacheService } from '../services/cache.service';
 
 const ReadmeView: React.FC = () => {
   const [description, setDescription] = useState('');
-  const { fileTree, repoUrl, stagedFiles } = useContext(GithubContext);
+  const { fileTree, repoUrl, stagedFiles, apiKey } = useContext(GithubContext);
   const { settings } = useSettings();
 
   useEffect(() => {
@@ -49,7 +50,7 @@ const ReadmeView: React.FC = () => {
 
     const prompt = `Generate a README for a project with the following description and context: ${description}`;
     console.log(`ReadmeView: Generating README with prompt: "${prompt}" (no cache)`);
-    return supervisor.handleRequest(prompt, { fileTree, stagedFiles }, { setActiveView: () => {} }, ReadmeAgent.id);
+    return supervisor.handleRequest(prompt, { fileTree, stagedFiles, apiKey }, { setActiveView: () => {} }, ReadmeAgent.id);
   });
   
   // Cache the result after a successful operation

@@ -18,6 +18,7 @@ interface NavItemConfig {
     icon: React.ReactNode;
     group: string;
     disabled?: boolean;
+    tooltip?: string;
 }
 
 const ThemeSwitcher: React.FC = () => {
@@ -61,6 +62,7 @@ const NavItem: React.FC<{
         <button
             onClick={() => setActiveView(config.id)}
             disabled={config.disabled}
+            data-tooltip={config.tooltip}
             className={cn(
                 "flex items-center w-full text-left p-3 rounded-lg transition-all duration-200 text-sm font-medium relative",
                 "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
@@ -95,7 +97,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
         { id: 'agent-memory', label: 'Agent Memory', icon: <DatabaseIcon />, group: 'PROJECT' },
 
         // GitHub Pro
-        { id: 'pr-reviewer', label: 'PR Reviewer', icon: <GitPullRequestIcon />, group: 'GITHUB PRO' },
+        { id: 'github-pro', label: 'GitHub Pro', icon: <GitPullRequestIcon />, group: 'GITHUB PRO' },
         
         // App
         { id: 'documentation', label: 'Documentation', icon: <BookOpenIcon />, group: 'APP' },

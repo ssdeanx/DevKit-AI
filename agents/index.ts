@@ -14,6 +14,8 @@ import { PlannerAgent } from "./PlannerAgent";
 import { CodeGraphAgent } from "./CodeGraphAgent";
 import { MemoryAgent } from "./MemoryAgent";
 import { PullRequestAgent } from "./PullRequestAgent";
+import { IssueLabelAgent } from "./IssueLabelAgent";
+import { ImageRefinementAgent } from "./ImageRefinementAgent";
 
 export const initialAgents: Agent[] = [
     ChatAgent,
@@ -21,9 +23,11 @@ export const initialAgents: Agent[] = [
     ReadmeAgent,
     ProjectRulesAgent,
     PullRequestAgent,
+    IssueLabelAgent,
     ResearchAgent,
     RefinerAgent,
     IconPromptAgent,
+    ImageRefinementAgent,
     CodeExecutionAgent,
     StructuredOutputAgent,
     UrlAgent,

@@ -1,3 +1,4 @@
+
 import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
 import { GithubContext } from '../context/GithubContext';
 import { GithubIcon, FilesIcon, FileMinusIcon } from '../components/icons';
@@ -8,9 +9,6 @@ import { Button } from '../components/ui/Button';
 import { Label } from '../components/ui/Label';
 import ViewHeader from '../components/ViewHeader';
 import { FileTree } from '../components/FileTree';
-
-
-const GITHUB_API_KEY_STORAGE_KEY = 'devkit-github-api-key';
 
 const StagedFiles: React.FC<{
     files: StagedFile[];
@@ -40,11 +38,10 @@ const StagedFiles: React.FC<{
 
 const GithubInspectorView: React.FC = () => {
     const [urlInput, setUrlInput] = useState('https://github.com/ssdeanx/DevKit-AI');
-    const [apiKey, setApiKey] = useState(() => localStorage.getItem(GITHUB_API_KEY_STORAGE_KEY) || '');
     const { 
         repoUrl, fileTree, isLoading, error, fetchRepo, 
         stagedFiles, stageFile, unstageFile, stageFolder, unstageFolder,
-        stageAllFiles, unstageAllFiles 
+        stageAllFiles, unstageAllFiles, apiKey, setApiKey
     } = useContext(GithubContext);
 
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -101,29 +98,13 @@ const GithubInspectorView: React.FC = () => {
         countFiles(fileTree);
         return count;
     }, [fileTree]);
-
-    useEffect(() => {
-        localStorage.setItem(GITHUB_API_KEY_STORAGE_KEY, apiKey);
-    }, [apiKey]);
-
+    
     const handleFetch = () => {
         if (urlInput.trim()) {
-            fetchRepo(urlInput.trim(), apiKey.trim());
+            fetchRepo(urlInput.trim());
         }
     };
     
-    const handleStageFile = (path: string) => {
-        stageFile(path, apiKey.trim());
-    };
-    
-    const handleStageFolder = (path: string) => {
-        stageFolder(path, apiKey.trim());
-    };
-
-    const handleStageAll = () => {
-        if (fileTree) stageAllFiles(apiKey.trim());
-    };
-
     return (
         <div className="flex flex-col h-full bg-background overflow-hidden">
             <ViewHeader
@@ -150,13 +131,13 @@ const GithubInspectorView: React.FC = () => {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="api-key">GitHub API Key (Optional)</Label>
+                                <Label htmlFor="api-key">GitHub API Key (Optional but Recommended)</Label>
                                 <Input
                                     id="api-key"
                                     type="password"
                                     value={apiKey}
                                     onChange={(e) => setApiKey(e.target.value)}
-                                    placeholder="Enter personal access token for higher rate limits"
+                                    placeholder="Enter personal access token for higher rate limits & private repos"
                                 />
                             </div>
                             <Button onClick={handleFetch} disabled={isLoading} size="lg" className="w-full">
@@ -173,7 +154,7 @@ const GithubInspectorView: React.FC = () => {
                                     <CardDescription>The content of these files will be sent to context-aware agents.</CardDescription>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <Button size="sm" variant="outline" onClick={handleStageAll} disabled={!fileTree || stagedFiles.length === totalFiles}>
+                                    <Button size="sm" variant="outline" onClick={() => stageAllFiles()} disabled={!fileTree || stagedFiles.length === totalFiles}>
                                         <FilesIcon className="w-4 h-4 mr-2" />
                                         Stage All
                                     </Button>
@@ -211,7 +192,7 @@ const GithubInspectorView: React.FC = () => {
                         <CardContent className="flex-1 overflow-y-auto custom-scrollbar">
                             {isLoading && (
                                 <div className="flex items-center justify-center h-full text-muted-foreground">
-                                    <svg className="animate-spin h-8 w-8 text-foreground" xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <svg className="animate-spin h-8 w-8 text-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
@@ -222,8 +203,8 @@ const GithubInspectorView: React.FC = () => {
                                 <FileTree 
                                     tree={fileTree} 
                                     stagedFiles={stagedFiles} 
-                                    onStageFile={handleStageFile} 
-                                    onStageFolder={handleStageFolder} 
+                                    onStageFile={stageFile} 
+                                    onStageFolder={stageFolder} 
                                     onUnstageFolder={unstageFolder}
                                     expandedFolders={expandedFolders}
                                     onToggleFolder={toggleFolder}

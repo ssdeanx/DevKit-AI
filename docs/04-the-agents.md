@@ -21,12 +21,14 @@ mindmap
       CodeGraphAgent
     **GitHub Pro**
       PullRequestAgent
+      IssueLabelAgent
     **Research & Refinement**
       ResearchAgent
       RefinerAgent
       UrlAgent
     **Creative & System**
       IconPromptAgent
+      ImageRefinementAgent
       MemoryAgent
 ```
 
@@ -36,7 +38,7 @@ mindmap
 
 | Agent Name            | Purpose & Best Use Case                                                                                                                              |
 | :-------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`ChatAgent`**         | Your primary conversational partner. It's a highly capable generalist, perfect for coding questions, debugging, brainstorming, and explanations.      |
+| **`ChatAgent`**         | Your primary conversational partner. It's a highly capable generalist, perfect for coding questions, debugging, brainstorming, and explanations. Now equipped with a GitHub Code Search tool.      |
 | **`PlannerAgent`**      | The master strategist. It deconstructs complex, multi-step tasks (e.g., "research a topic and then write code about it") into a logical plan for other agents to execute. It is chosen automatically for complex requests. |
 | **`FunctionCallingAgent`** | An application controller. It uses tools to perform actions within the app itself. Use it for commands like "navigate to the settings view" or "change the temperature of the ReadmeAgent to 0.8". |
 
@@ -59,6 +61,7 @@ mindmap
 | Agent Name                | Purpose & Best Use Case                                                                                                                                                                   |
 | :------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`PullRequestAgent`**      | An expert code reviewer. It analyzes the changes in a pull request and provides a detailed review, covering bugs, style, and best practices. Powers the "PR Reviewer" tool.              |
+| **`IssueLabelAgent`**       | An AI triage engineer. It analyzes a GitHub issue's content and automatically suggests and applies the most relevant labels from your repository, streamlining project management.     |
 
 ---
 
@@ -74,10 +77,11 @@ mindmap
 
 ### Creative & Design Agents
 
-| Agent Name         | Purpose & Best Use Case                                                                                                                                  |
-| :----------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`IconPromptAgent`**| An expert art director. It takes a simple idea (e.g., "a logo for a space company") and generates three distinct, highly detailed, professional prompts for an AI image generator. |
-| **`MemoryAgent`**    | A system agent that works in the background. It's responsible for summarizing conversations and checking for novel information to store in long-term memory. It is not intended for direct user interaction. |
+| Agent Name                | Purpose & Best Use Case                                                                                                                                  |
+| :------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`IconPromptAgent`**       | An expert art director. It takes a simple idea (e.g., "a logo for a space company") and generates three distinct, highly detailed, professional prompts for an AI image generator. |
+| **`ImageRefinementAgent`**  | A multimodal creative assistant. It analyzes a generated image and your text feedback to create a new, improved prompt, enabling an iterative design workflow. |
+| **`MemoryAgent`**           | A system agent that works in the background. It's responsible for summarizing conversations and checking for novel information to store in long-term memory. It is not intended for direct user interaction. |
 
 ---
-*Version 1.3.0*
+*Version 1.4.0*

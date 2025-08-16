@@ -18,11 +18,35 @@ const useTabs = () => {
 
 const Tabs = ({
   defaultValue,
+  value,
+  onValueChange,
   children,
   className,
   ...props
-}: React.HTMLAttributes<HTMLDivElement> & { defaultValue: string }) => {
-  const [activeTab, setActiveTab] = React.useState(defaultValue);
+}: React.HTMLAttributes<HTMLDivElement> & {
+  defaultValue?: string;
+  value?: string;
+  onValueChange?: (value: string) => void;
+}) => {
+  const [internalActiveTab, setInternalActiveTab] = React.useState(defaultValue);
+
+  const isControlled = value !== undefined;
+  const activeTab = isControlled ? value : internalActiveTab!;
+
+  const setActiveTab = (newValue: string) => {
+    if (!isControlled) {
+      setInternalActiveTab(newValue);
+    }
+    if (onValueChange) {
+      onValueChange(newValue);
+    }
+  };
+
+  if (defaultValue && value !== undefined) {
+    console.warn(
+      'Tabs component is being used as both controlled and uncontrolled. `value` will override `defaultValue`.'
+    );
+  }
 
   return (
     <TabsContext.Provider value={{ activeTab, setActiveTab }}>
@@ -32,6 +56,7 @@ const Tabs = ({
     </TabsContext.Provider>
   );
 };
+Tabs.displayName = 'Tabs';
 
 const TabsList = React.forwardRef<
   HTMLDivElement,
