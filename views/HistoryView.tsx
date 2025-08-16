@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { historyService, HistoryEntry } from '../services/history.service';
-import { UserIcon, BotIcon } from '../components/icons';
+import { UserIcon, BotIcon, HistoryIcon } from '../components/icons';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
 import { cn } from '../lib/utils';
+import ViewHeader from '../components/ViewHeader';
 
 const HistoryView: React.FC = () => {
     const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -38,19 +39,19 @@ const HistoryView: React.FC = () => {
 
     return (
         <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
-            <header className="p-6 border-b flex justify-between items-center">
-                <div>
-                    <h1 className="text-2xl font-bold">Generation History</h1>
-                    <p className="text-sm text-muted-foreground">Review your past conversations with the AI agents.</p>
-                </div>
+            <ViewHeader
+                icon={<HistoryIcon className="w-6 h-6" />}
+                title="Generation History"
+                description="Review your past conversations with the AI agents."
+            >
                 {history.length > 0 && (
                      <Button onClick={handleClearHistory} variant="destructive">
                         Clear History
                     </Button>
                 )}
-            </header>
+            </ViewHeader>
 
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                 {history.length === 0 ? (
                     <div className="text-center text-muted-foreground h-full flex items-center justify-center">
                         <p>No history yet. Start a conversation in the Chat view!</p>

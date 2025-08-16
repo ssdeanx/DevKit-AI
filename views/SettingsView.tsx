@@ -5,7 +5,6 @@ import { ThinkingConfig, GenerationConfig, Tool } from '@google/genai';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { Label } from '../components/ui/Label';
 import { Slider } from '../components/ui/Slider';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/Tabs';
 import { useSettings, AgentThoughtsStyle, WorkflowVisualType } from '../context/SettingsContext';
 import WorkflowVisual from '../components/WorkflowVisual';
@@ -14,6 +13,8 @@ import { Switch } from '../components/ui/Switch';
 import { cn } from '../lib/utils';
 import { cacheService } from '../services/cache.service';
 import { Button } from '../components/ui/Button';
+import ViewHeader from '../components/ViewHeader';
+import { SettingsIcon } from '../components/icons';
 
 
 const SettingsSlider: React.FC<{
@@ -208,15 +209,31 @@ const SettingsView: React.FC = () => {
     agentService.updateAgentConfig(agentId, newConfig);
     setAgents(agentService.getAgents());
   }, []);
+  
+  const thoughtStyles: { id: AgentThoughtsStyle; label: string; }[] = [
+    { id: 'default', label: 'Default Card' },
+    { id: 'terminal', label: 'Terminal' },
+    { id: 'blueprint', label: 'Blueprint' },
+    { id: 'handwritten', label: 'Handwritten' },
+    { id: 'code-comment', label: 'Code Comment' },
+    { id: 'matrix', label: 'Matrix' },
+    { id: 'scroll', label: 'Scroll' },
+  ];
+
+  const workflowStyles: { id: WorkflowVisualType; label: string; }[] = [
+      { id: 'simple', label: 'Simple Flow' },
+      { id: 'detailed', label: 'Detailed Flow' }
+  ];
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto">
-      <header className="p-6 border-b sticky top-0 bg-background/95 backdrop-blur z-10">
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-sm text-muted-foreground">Fine-tune general settings and parameters for each AI agent.</p>
-      </header>
+    <div className="flex-1 flex flex-col h-full bg-background">
+      <ViewHeader
+        icon={<SettingsIcon className="w-6 h-6" />}
+        title="Settings"
+        description="Fine-tune general settings and parameters for each AI agent."
+      />
 
-      <div className="p-6">
+      <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
         <Tabs defaultValue="general">
           <TabsList className="flex-wrap h-auto justify-start">
             <TabsTrigger value="general">General</TabsTrigger>
@@ -234,34 +251,60 @@ const SettingsView: React.FC = () => {
                 <CardContent className="space-y-8">
                     <div className="space-y-4">
                         <Label>Agent Thoughts Visual Style</Label>
-                        <Select value={settings.agentThoughtsStyle} onValueChange={(v) => setSettings({ ...settings, agentThoughtsStyle: v as AgentThoughtsStyle })}>
-                            <SelectTrigger className="w-full md:w-1/2">
-                                <SelectValue placeholder="Select style"/>
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="default">Default Card</SelectItem>
-                                <SelectItem value="terminal">Terminal</SelectItem>
-                                <SelectItem value="blueprint">Blueprint</SelectItem>
-                                <SelectItem value="handwritten">Handwritten Notes</SelectItem>
-                                <SelectItem value="code-comment">Code Comment</SelectItem>
-                                <SelectItem value="matrix">Matrix</SelectItem>
-                                <SelectItem value="scroll">Ancient Scroll</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {thoughtStyles.map(style => (
+                                <div
+                                    key={style.id}
+                                    onClick={() => setSettings({ ...settings, agentThoughtsStyle: style.id })}
+                                    className={cn(
+                                        "p-2 rounded-lg border-2 cursor-pointer transition-all card-interactive",
+                                        settings.agentThoughtsStyle === style.id ? 'border-primary shadow-lg scale-105' : 'border-border hover:border-primary/50'
+                                    )}
+                                >
+                                    <div className={cn('p-2 rounded-md h-20 flex items-center justify-center text-xs overflow-hidden',
+                                        style.id === 'default' && 'bg-muted/50',
+                                        style.id === 'terminal' && 'thoughts-terminal',
+                                        style.id === 'blueprint' && 'thoughts-blueprint',
+                                        style.id === 'handwritten' && 'thoughts-handwritten',
+                                        style.id === 'code-comment' && 'thoughts-code-comment',
+                                        style.id === 'matrix' && 'thoughts-matrix',
+                                        style.id === 'scroll' && 'thoughts-scroll',
+                                     )}>
+                                        <p className={cn(
+                                            'break-all',
+                                            style.id === 'terminal' && 'text-green-400',
+                                            style.id === 'blueprint' && 'text-blue-200',
+                                            style.id === 'handwritten' && 'text-stone-800 dark:text-stone-300',
+                                            style.id === 'code-comment' && 'thoughts-code-comment-content',
+                                            style.id === 'matrix' && 'text-green-400',
+                                            style.id === 'scroll' && 'text-[#5C4033] dark:text-[#d4c3b4]',
+                                        )}>
+                                            Agent thoughts...
+                                        </p>
+                                     </div>
+                                     <p className="text-center text-sm font-medium mt-2">{style.label}</p>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                     <div className="space-y-4">
                         <Label>Workflow Visualizer</Label>
-                        <Select value={settings.workflowVisual} onValueChange={(v) => setSettings({ ...settings, workflowVisual: v as WorkflowVisualType })}>
-                            <SelectTrigger className="w-full md:w-1/2">
-                                <SelectValue placeholder="Select visual"/>
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="simple">Simple Flow</SelectItem>
-                                <SelectItem value="detailed">Detailed Flow</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <div className="p-4 border rounded-lg bg-secondary/50 mt-4">
-                            <WorkflowVisual style={settings.workflowVisual} />
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {workflowStyles.map(style => (
+                                <div
+                                    key={style.id}
+                                    onClick={() => setSettings({ ...settings, workflowVisual: style.id })}
+                                    className={cn(
+                                        "p-2 rounded-lg border-2 cursor-pointer transition-all card-interactive",
+                                        settings.workflowVisual === style.id ? 'border-primary shadow-lg scale-105' : 'border-border hover:border-primary/50'
+                                    )}
+                                >
+                                    <div className="p-4 border rounded-lg bg-secondary/50 h-48 flex items-center justify-center">
+                                        <WorkflowVisual style={style.id} />
+                                    </div>
+                                    <p className="text-center text-sm font-medium mt-2">{style.label}</p>
+                                </div>
+                            ))}
                         </div>
                     </div>
                     <div className="border-t pt-6">

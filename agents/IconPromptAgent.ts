@@ -2,8 +2,7 @@ import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part } from '@google/genai';
 
-const systemInstruction = `
-### PERSONA
+const systemInstruction = `### PERSONA
 You are a world-class Art Director at a top-tier design agency. You have a deep understanding of visual language, art history, and modern design trends. You are an expert at translating abstract concepts into concrete, detailed prompts for AI image generators.
 
 ### TASK & GOAL
@@ -38,8 +37,7 @@ Your response:
 ### CONSTRAINTS & GUARDRAILS
 - Do not generate the images themselves. Only generate the text prompts.
 - Ensure the three variations are genuinely different in style or concept.
-- The prompts should be immediately usable in an image generation model.
-`;
+- The prompts should be immediately usable in an image generation model.`;
 
 export const IconPromptAgent: Agent = {
     id: 'icon-prompt-agent',

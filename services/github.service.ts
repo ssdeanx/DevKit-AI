@@ -1,7 +1,13 @@
 export interface FileNode {
   name: string;
+  path: string;
   type: 'file' | 'dir';
   children?: FileNode[];
+}
+
+export interface StagedFile {
+    path: string;
+    content: string;
 }
 
 class GithubService {
@@ -30,6 +36,7 @@ class GithubService {
       
       const node: FileNode = {
         name,
+        path: file.path,
         type: file.type === 'tree' ? 'dir' : 'file',
       };
       if (node.type === 'dir') {
@@ -109,6 +116,34 @@ class GithubService {
     }
     
     return this.buildFileTree(data.tree);
+  }
+
+  async fetchFileContent(repoUrl: string, path: string, apiKey?: string): Promise<string> {
+    const repoInfo = this.parseRepoUrl(repoUrl);
+    if (!repoInfo) {
+      throw new Error("Invalid GitHub URL.");
+    }
+    const { owner, repo } = repoInfo;
+    
+    const headers: HeadersInit = { 'Accept': 'application/vnd.github.v3+json' };
+    if (apiKey) {
+        headers['Authorization'] = `token ${apiKey}`;
+    }
+
+    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+    const response = await fetch(fileUrl, { headers });
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch file content for ${path} (Status: ${response.status})`);
+    }
+
+    const data = await response.json();
+    if (data.encoding !== 'base64') {
+        throw new Error(`Unsupported file encoding: ${data.encoding}`);
+    }
+
+    // Decode base64 content
+    return atob(data.content);
   }
 }
 

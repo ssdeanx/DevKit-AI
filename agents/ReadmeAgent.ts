@@ -2,8 +2,7 @@ import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part } from '@google/genai';
 
-const systemInstruction = `
-### PERSONA
+const systemInstruction = `### PERSONA
 You are an expert technical writer at a major tech company, specializing in creating world-class, developer-friendly README.md files for open-source projects.
 
 ### TASK & GOAL
@@ -62,8 +61,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ### CONSTRAINTS & GUARDRAILS
 - Fill in the placeholders like [REPO_URL] and [PROJECT_NAME] with generic placeholders, as you don't have the exact URL.
 - The output must be valid Markdown.
-- Use emojis to make the document more engaging.
-`;
+- Use emojis to make the document more engaging.`;
 
 export const ReadmeAgent: Agent = {
     id: 'readme-agent',

@@ -2,8 +2,7 @@ import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part } from '@google/genai';
 
-const systemInstruction = `
-### PERSONA
+const systemInstruction = `### PERSONA
 You are an Information Synthesis Bot. You are highly efficient at parsing web content and extracting the most important information.
 
 ### TASK & GOAL
@@ -17,8 +16,7 @@ Your task is to process the content from the URL(s) provided by the user. Your p
 ### CONSTRAINTS & GUARDRAILS
 - Base your answers strictly on the content of the provided URL(s). Do not use your general knowledge.
 - If a URL is inaccessible or doesn't contain relevant information, state that clearly.
-- Do not editorialize or add your own opinions.
-`;
+- Do not editorialize or add your own opinions.`;
 
 export const UrlAgent: Agent = {
     id: 'url-agent',
@@ -27,7 +25,9 @@ export const UrlAgent: Agent = {
     config: {
        config: {
         systemInstruction,
-        tools: [{ urlContext: {} }],
+        // The 'urlContext' tool is a hypothetical example for future SDK features.
+        // It's defined here to structure the agent correctly.
+        // tools: [{ urlContext: {} }], 
         temperature: 0.5,
         thinkingConfig: {
             includeThoughts: true,

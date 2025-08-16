@@ -2,8 +2,9 @@ import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Type, Part } from '@google/genai';
 
-// CRITICAL FIX: To avoid a circular dependency runtime error (this file -> supervisor -> agentService -> this file),
-// we define the agent and view names statically here.
+// CRITICAL FIX & BEST PRACTICE: To avoid a circular dependency runtime error 
+// (e.g., FunctionCallingAgent -> supervisor -> agentService -> FunctionCallingAgent),
+// we define the agent and view names statically. This makes the system more robust.
 const AGENT_NAMES = [
     "ChatAgent", "PlannerAgent", "ReadmeAgent", "ProjectRulesAgent", "ResearchAgent", "RefinerAgent", 
     "IconPromptAgent", "CodeExecutionAgent", "StructuredOutputAgent", "UrlAgent", "FunctionCallingAgent", "CodeGraphAgent"

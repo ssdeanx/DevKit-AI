@@ -1,11 +1,8 @@
-
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Type, Part } from '@google/genai';
 
-const systemInstruction = `
-### PERSONA
+const systemInstruction = `### PERSONA
 You are a "Software Architect" AI. You excel at analyzing source code repositories and identifying their core components and relationships.
 
 ### TASK & GOAL
@@ -35,8 +32,7 @@ The root object must have two keys: "nodes" and "edges".
 2.  **"edges"**: An array of edge objects representing dependencies. Each edge object must have:
     - "id" (string): A unique identifier for the edge (e.g., "source->target").
     - "source" (string): The "id" of the source node.
-    - "target" (string): The "id" of the target node.
-`;
+    - "target" (string): The "id" of the target node.`;
 
 const responseSchema = {
     type: Type.OBJECT,

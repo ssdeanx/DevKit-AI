@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, FormEvent, useContext } from 'react';
 import { supervisor } from '../services/supervisor';
-import { UserIcon, BotIcon, ThumbsUpIcon, ThumbsDownIcon, BrainIcon, ToolIcon } from '../components/icons';
+import { UserIcon, BotIcon, ThumbsUpIcon, ThumbsDownIcon, BrainIcon, ToolIcon, SparklesIcon, SendIcon, ChatIcon } from '../components/icons';
 import { GithubContext } from '../context/GithubContext';
 import { historyService } from '../services/history.service';
-import { Card, CardContent, CardFooter } from '../components/ui/Card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { cn } from '../lib/utils';
@@ -13,6 +13,9 @@ import { FunctionCall, GroundingChunk } from '@google/genai';
 import WorkflowStatus from '../components/WorkflowStatus';
 import ExamplePrompts from '../components/ExamplePrompts';
 import MarkdownRenderer from '../components/MarkdownRenderer';
+import { Textarea } from '../components/ui/Textarea';
+import { Label } from '../components/ui/Label';
+import ViewHeader from '../components/ViewHeader';
 
 type MessageAuthor = 'user' | 'ai';
 type Feedback = 'positive' | 'negative' | null;
@@ -27,6 +30,17 @@ interface Message {
   functionCall?: FunctionCall;
   isFunctionCallMessage?: boolean;
   sources?: GroundingChunk[];
+}
+
+interface RetryContext {
+    originalPrompt: string;
+    feedback: string;
+}
+
+interface FeedbackModalState {
+    isOpen: boolean;
+    messageId: string | null;
+    feedbackText: string;
 }
 
 const useTypewriter = (text: string, speed = 20) => {
@@ -58,8 +72,9 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
   const [isLoading, setIsLoading] = useState(false);
   const [activeAgentName, setActiveAgentName] = useState<string | null>(null);
   const [workflowPlan, setWorkflowPlan] = useState<WorkflowStep[] | null>(null);
+  const [feedbackModal, setFeedbackModal] = useState<FeedbackModalState>({ isOpen: false, messageId: null, feedbackText: '' });
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { repoUrl, fileTree } = useContext(GithubContext);
+  const { repoUrl, fileTree, stagedFiles } = useContext(GithubContext);
 
   useEffect(() => {
     setMessages(historyService.getHistory().map(entry => ({...entry, feedback: null})));
@@ -71,7 +86,79 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
 
   useEffect(scrollToBottom, [messages, workflowPlan]);
 
-  const handleSendMessage = async (e: FormEvent) => {
+  const executeAiTurn = async (prompt: string, retryContext?: RetryContext) => {
+    setIsLoading(true);
+    setWorkflowPlan(null);
+    let finalAgentName = '';
+
+    try {
+        const { agent, stream } = await supervisor.handleRequest(prompt, { fileTree, stagedFiles }, { setActiveView }, undefined, retryContext);
+        setActiveAgentName(agent.name);
+        finalAgentName = agent.name;
+      
+        const aiMessageId = `ai-${Date.now()}`;
+        let finalContent = '';
+        let finalThoughts = '';
+        let finalFunctionCall: FunctionCall | undefined = undefined;
+        let finalSources: GroundingChunk[] | undefined = undefined;
+        let isFunctionCallMessage = false;
+      
+        setMessages(prev => [...prev, { 
+            id: aiMessageId, 
+            author: 'ai', 
+            content: '',
+            thoughts: '',
+            agentName: agent.name, 
+            feedback: null,
+            isFunctionCallMessage: false
+        }]);
+
+        for await (const chunk of stream) {
+            if (chunk.type === 'thought') {
+            finalThoughts += chunk.content;
+            } else if (chunk.type === 'content') {
+            finalContent += chunk.content;
+            } else if (chunk.type === 'functionCall') {
+            finalFunctionCall = chunk.functionCall;
+            finalContent = `Executing tool: \`${chunk.functionCall.name}\` with arguments: \`${JSON.stringify(chunk.functionCall.args)}\``;
+            isFunctionCallMessage = true;
+            } else if (chunk.type === 'workflowUpdate' && chunk.plan) {
+                setWorkflowPlan(chunk.plan);
+            } else if (chunk.type === 'metadata' && chunk.metadata.groundingMetadata) {
+                finalSources = chunk.metadata.groundingMetadata.groundingChunks;
+            }
+            
+            setMessages(prev =>
+            prev.map(msg =>
+                msg.id === aiMessageId ? { ...msg, content: finalContent, thoughts: finalThoughts, functionCall: finalFunctionCall, isFunctionCallMessage, agentName: chunk.agentName || agent.name, sources: finalSources } : msg
+            )
+            );
+        }
+        historyService.addEntry({id: aiMessageId, author: 'ai', content: finalContent, thoughts: finalThoughts, agentName: agent.name});
+        
+        await supervisor.saveKnowledgeIfApplicable(finalAgentName, finalContent);
+
+    } catch (error) {
+        console.error("ChatView: Error during AI turn:", error);
+        const errorMessage: Message = {
+            id: `err-${Date.now()}`,
+            author: 'ai',
+            content: 'Sorry, I encountered an error. Please try again.',
+            agentName: 'System',
+            feedback: null
+        };
+        setMessages(prev => [...prev, errorMessage]);
+    } finally {
+        setIsLoading(false);
+        setActiveAgentName(null);
+        if (workflowPlan) {
+            setWorkflowPlan(plan => plan ? plan.map(step => ({...step, status: 'completed'})) : null);
+        }
+    }
+  };
+
+
+  const handleFormSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || isLoading) return;
 
@@ -84,73 +171,9 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
     setMessages(prev => [...prev, userMessage]);
     historyService.addEntry({id: userMessage.id, author: 'user', content: inputValue});
     
-    console.log(`ChatView: Sending message to supervisor: "${inputValue}"`);
+    const prompt = inputValue;
     setInputValue('');
-    setIsLoading(true);
-    setWorkflowPlan(null);
-
-    try {
-      const { agent, stream } = await supervisor.handleRequest(inputValue, fileTree, { setActiveView });
-      setActiveAgentName(agent.name);
-      
-      const aiMessageId = `ai-${Date.now()}`;
-      let finalContent = '';
-      let finalThoughts = '';
-      let finalFunctionCall: FunctionCall | undefined = undefined;
-      let finalSources: GroundingChunk[] | undefined = undefined;
-      let isFunctionCallMessage = false;
-      
-      setMessages(prev => [...prev, { 
-        id: aiMessageId, 
-        author: 'ai', 
-        content: '',
-        thoughts: '',
-        agentName: agent.name, 
-        feedback: null,
-        isFunctionCallMessage: false
-      }]);
-
-      for await (const chunk of stream) {
-        if (chunk.type === 'thought') {
-          finalThoughts += chunk.content;
-        } else if (chunk.type === 'content') {
-          finalContent += chunk.content;
-        } else if (chunk.type === 'functionCall') {
-          finalFunctionCall = chunk.functionCall;
-          finalContent = `Executing tool: \`${chunk.functionCall.name}\` with arguments: \`${JSON.stringify(chunk.functionCall.args)}\``;
-          isFunctionCallMessage = true;
-        } else if (chunk.type === 'workflowUpdate' && chunk.plan) {
-            setWorkflowPlan(chunk.plan);
-        } else if (chunk.type === 'metadata' && chunk.metadata.groundingMetadata) {
-            finalSources = chunk.metadata.groundingMetadata.groundingChunks;
-        }
-        
-        setMessages(prev =>
-          prev.map(msg =>
-            msg.id === aiMessageId ? { ...msg, content: finalContent, thoughts: finalThoughts, functionCall: finalFunctionCall, isFunctionCallMessage, agentName: chunk.agentName || agent.name, sources: finalSources } : msg
-          )
-        );
-      }
-      historyService.addEntry({id: aiMessageId, author: 'ai', content: finalContent, thoughts: finalThoughts, agentName: agent.name});
-
-    } catch (error) {
-      console.error("ChatView: Error sending message:", error);
-      const errorMessage: Message = {
-        id: `err-${Date.now()}`,
-        author: 'ai',
-        content: 'Sorry, I encountered an error. Please try again.',
-        agentName: 'System',
-        feedback: null
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-      setActiveAgentName(null);
-      // Keep the workflow plan visible after completion
-      if (workflowPlan) {
-        setWorkflowPlan(plan => plan ? plan.map(step => ({...step, status: 'completed'})) : null);
-      }
-    }
+    await executeAiTurn(prompt);
   };
   
   const handleFeedback = (messageId: string, rating: 'positive' | 'negative') => {
@@ -162,12 +185,30 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
       if (!message) return;
 
       if (rating === 'negative') {
-          const reason = window.prompt("What went wrong? (Optional)");
-          supervisor.recordFeedback(messageId, 'negative', reason, message.agentName);
+          setFeedbackModal({ isOpen: true, messageId, feedbackText: '' });
       } else {
           supervisor.recordFeedback(messageId, 'positive', null, message.agentName);
       }
   };
+
+  const handleFeedbackSubmit = async () => {
+    if (!feedbackModal.messageId || !feedbackModal.feedbackText.trim()) return;
+
+    const message = messages.find(msg => msg.id === feedbackModal.messageId);
+    if (!message) return;
+
+    supervisor.recordFeedback(feedbackModal.messageId, 'negative', feedbackModal.feedbackText, message.agentName);
+    
+    const messageIndex = messages.findIndex(msg => msg.id === feedbackModal.messageId);
+    if (messageIndex > 0) {
+        const userMessage = messages[messageIndex - 1];
+        if (userMessage.author === 'user') {
+            await executeAiTurn(userMessage.content, { originalPrompt: userMessage.content, feedback: feedbackModal.feedbackText });
+        }
+    }
+    setFeedbackModal({ isOpen: false, messageId: null, feedbackText: '' });
+  };
+
 
   const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
     const isUser = message.author === 'user';
@@ -177,19 +218,19 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
     const needsCursor = settings.agentThoughtsStyle === 'terminal' || settings.agentThoughtsStyle === 'matrix';
 
     return (
-      <div className={cn("flex items-start gap-4 animate-in", isUser ? "justify-end" : "")}>
+      <div className={cn("flex items-end gap-3 animate-in w-full", isUser ? "justify-end" : "justify-start")}>
         {!isUser && (
-          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
-             {message.isFunctionCallMessage ? <ToolIcon className="w-6 h-6 text-secondary-foreground" /> : <BotIcon className="w-6 h-6 text-secondary-foreground" />}
+          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-secondary flex items-center justify-center border">
+             {message.isFunctionCallMessage ? <ToolIcon className="w-5 h-5 text-secondary-foreground" /> : <SparklesIcon className="w-5 h-5 text-primary" />}
           </div>
         )}
-        <div className="flex flex-col gap-2 w-full max-w-[80%]">
-            <Card className={cn(
-                "group",
-                isUser ? "bg-primary text-primary-foreground" : "bg-secondary",
-                message.isFunctionCallMessage && "border-primary/50 bg-primary/10"
+        <div className="flex flex-col gap-2 w-full items-start" style={{ alignItems: isUser ? 'flex-end' : 'flex-start' }}>
+            <div className={cn(
+                "group chat-bubble",
+                isUser ? "chat-bubble-user" : "chat-bubble-ai",
+                message.isFunctionCallMessage && "border border-primary/50 bg-primary/10"
             )}>
-                <CardContent className={cn("p-3 text-sm", message.isFunctionCallMessage && "text-primary/90 italic")}>
+                <div className={cn("text-base", message.isFunctionCallMessage && "text-primary/90 italic")}>
                     <MarkdownRenderer content={message.content} />
                     {message.sources && message.sources.length > 0 && (
                         <div className="mt-4 pt-2 border-t border-border/50">
@@ -201,7 +242,7 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
                                         href={source.web.uri}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="text-xs bg-background hover:bg-accent text-accent-foreground py-1 px-2 rounded-full transition-colors"
+                                        className="text-xs bg-background hover:bg-accent text-accent-foreground py-1 px-2 rounded-full transition-colors border"
                                     >
                                         {index + 1}. {source.web.title || new URL(source.web.uri).hostname}
                                     </a>
@@ -209,29 +250,29 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
                             </div>
                         </div>
                     )}
-                </CardContent>
+                </div>
                 {!isUser && message.content && !message.isFunctionCallMessage && (
-                    <CardFooter className="p-2 border-t justify-between items-center">
-                        <span className="text-xs font-mono text-muted-foreground bg-background px-2 py-1 rounded">{message.agentName || 'AI Assistant'}</span>
+                    <div className="mt-2 pt-2 border-t border-border/20 flex justify-between items-center">
+                        <span className="text-xs font-mono text-muted-foreground">{message.agentName || 'AI'}</span>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             {message.thoughts && (
-                              <Button variant="ghost" size="sm" onClick={() => setShowThoughts(!showThoughts)} className="h-auto p-1 text-muted-foreground hover:text-foreground">
+                              <Button variant="ghost" size="sm" onClick={() => setShowThoughts(!showThoughts)} className="h-auto p-1 text-muted-foreground hover:text-foreground" data-tooltip="View Thoughts">
                                 <BrainIcon className="w-4 h-4"/>
                               </Button>
                             )}
-                            <Button variant="ghost" size="sm" onClick={() => handleFeedback(message.id, 'positive')} disabled={message.feedback === 'positive'} className={cn("h-auto p-1", message.feedback === 'positive' ? 'text-green-400' : 'text-muted-foreground hover:text-foreground')}>
+                            <Button variant="ghost" size="sm" onClick={() => handleFeedback(message.id, 'positive')} disabled={message.feedback === 'positive'} className={cn("h-auto p-1", message.feedback === 'positive' ? 'text-green-500' : 'text-muted-foreground hover:text-foreground')} data-tooltip="Good response">
                                 <ThumbsUpIcon className="w-4 h-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleFeedback(message.id, 'negative')} disabled={message.feedback === 'negative'} className={cn("h-auto p-1", message.feedback === 'negative' ? 'text-red-400' : 'text-muted-foreground hover:text-foreground')}>
+                            <Button variant="ghost" size="sm" onClick={() => handleFeedback(message.id, 'negative')} disabled={message.feedback === 'negative'} className={cn("h-auto p-1", message.feedback === 'negative' ? 'text-red-500' : 'text-muted-foreground hover:text-foreground')} data-tooltip="Bad response">
                                 <ThumbsDownIcon className="w-4 h-4" />
                             </Button>
                         </div>
-                    </CardFooter>
+                    </div>
                 )}
-            </Card>
+            </div>
             {showThoughts && message.thoughts && (
               <Card className={cn(
-                  "bg-muted animate-in",
+                  "bg-muted/50 animate-in w-full",
                   settings.agentThoughtsStyle === 'terminal' && 'thoughts-terminal',
                   settings.agentThoughtsStyle === 'blueprint' && 'thoughts-blueprint',
                   settings.agentThoughtsStyle === 'handwritten' && 'thoughts-handwritten',
@@ -258,8 +299,8 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
             )}
         </div>
         {isUser && (
-          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
-            <UserIcon className="w-6 h-6 text-secondary-foreground" />
+          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-secondary flex items-center justify-center border">
+            <UserIcon className="w-5 h-5 text-secondary-foreground" />
           </div>
         )}
       </div>
@@ -273,64 +314,106 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
     "Navigate to the settings and change ChatAgent's temperature to 0.8"
   ];
 
-  return (
-    <div className="flex flex-col h-full bg-background">
-      <header className="p-6 border-b glass-effect">
-        <h1 className="text-2xl font-bold text-foreground animate-text-gradient bg-gradient-to-r from-primary via-muted-foreground to-primary">Chat</h1>
-        <p className="text-sm text-muted-foreground">
-          {repoUrl 
-            ? <>Currently inspecting: <span className="font-mono text-primary/80">{repoUrl}</span></>
-            : "Interact with specialized AI agents. Load a repo for context-aware chat."
-          }
-        </p>
-      </header>
+  const getSubheaderText = () => {
+    let contextParts = [];
+    if (repoUrl) {
+      const repoName = repoUrl.split('/').slice(-2).join('/');
+      contextParts.push(`Inspecting: ${repoName}`);
+    }
+    if (stagedFiles.length > 0) {
+      contextParts.push(`${stagedFiles.length} file(s) staged.`);
+    }
+    
+    if (contextParts.length === 0) {
+        return "Interact with specialized AI agents. Load a repo for context-aware chat.";
+    }
+    
+    return contextParts.join(' | ');
+  };
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+
+  return (
+    <div className="flex flex-col h-full bg-transparent">
+       <ViewHeader
+        icon={<ChatIcon className="w-6 h-6" />}
+        title="Chat"
+        description={getSubheaderText()}
+       />
+
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
         {workflowPlan && <WorkflowStatus plan={workflowPlan} />}
         {messages.map((msg) => (
           <ChatMessage key={msg.id} message={msg} />
         ))}
          {isLoading && (
-            <div className="flex items-start gap-4 animate-in">
-               <div className="flex-shrink-0 w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
-                  <BotIcon className="w-6 h-6 text-secondary-foreground" />
+            <div className="flex items-end gap-3 animate-in">
+               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-secondary flex items-center justify-center border">
+                  <SparklesIcon className="w-5 h-5 text-primary" />
               </div>
-              <div className="w-full max-w-[80%]">
-                <Card className="bg-secondary">
-                  <CardContent className="p-3 text-sm text-muted-foreground">
-                    <span className="animate-pulse">{activeAgentName || 'AI'} is thinking...</span>
-                  </CardContent>
-                </Card>
+              <div className="chat-bubble chat-bubble-ai flex items-center gap-2">
+                 <div className="w-2 h-2 bg-muted-foreground rounded-full animate-pulse-dot" style={{animationDelay: '0s'}}></div>
+                 <div className="w-2 h-2 bg-muted-foreground rounded-full animate-pulse-dot" style={{animationDelay: '0.2s'}}></div>
+                 <div className="w-2 h-2 bg-muted-foreground rounded-full animate-pulse-dot" style={{animationDelay: '0.4s'}}></div>
               </div>
             </div>
           )}
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-6 bg-background border-t glass-effect">
+      <div className="p-6 bg-transparent border-t">
         {messages.length === 0 && !isLoading && (
             <ExamplePrompts prompts={examplePrompts} onSelectPrompt={setInputValue} />
         )}
-        <form onSubmit={handleSendMessage} className="flex items-center space-x-4">
+        <form onSubmit={handleFormSubmit} className="relative">
           <Input
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Type your message here..."
-            className="flex-1"
+            placeholder="Ask me anything..."
+            className="w-full h-12 text-base rounded-full pr-14 pl-5"
             disabled={isLoading}
             aria-label="Chat input"
           />
           <Button
             type="submit"
-            size="lg"
+            size="icon"
             disabled={isLoading || !inputValue.trim()}
             aria-label="Send message"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full w-9 h-9"
+            data-tooltip="Send"
           >
-            Send
+            <SendIcon className="w-5 h-5" />
           </Button>
         </form>
       </div>
+      {feedbackModal.isOpen && (
+          <div className="feedback-modal-overlay">
+              <div className="feedback-modal-content">
+                  <Card>
+                      <CardHeader>
+                          <CardTitle>Provide Feedback</CardTitle>
+                          <CardDescription>Your feedback helps the AI improve. What went wrong with the response?</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                          <div className="space-y-2">
+                              <Label htmlFor="feedback-text">Feedback</Label>
+                              <Textarea
+                                  id="feedback-text"
+                                  placeholder="e.g., The code provided had a syntax error."
+                                  value={feedbackModal.feedbackText}
+                                  onChange={(e) => setFeedbackModal({ ...feedbackModal, feedbackText: e.target.value })}
+                                  className="min-h-[100px]"
+                              />
+                          </div>
+                      </CardContent>
+                      <CardFooter className="flex justify-end gap-2">
+                           <Button variant="ghost" onClick={() => setFeedbackModal({ isOpen: false, messageId: null, feedbackText: '' })}>Cancel</Button>
+                           <Button onClick={handleFeedbackSubmit} disabled={!feedbackModal.feedbackText.trim()}>Submit & Retry</Button>
+                      </CardFooter>
+                  </Card>
+              </div>
+          </div>
+      )}
     </div>
   );
 };

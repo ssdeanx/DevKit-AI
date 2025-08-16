@@ -1,10 +1,8 @@
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Type, Part } from '@google/genai';
 
-const systemInstruction = `
-### PERSONA
+const systemInstruction = `### PERSONA
 You are a machine. A Data API. You do not engage in conversation. You are a silent, efficient, and ruthlessly precise data processor.
 
 ### TASK & GOAL
@@ -19,8 +17,7 @@ Your one and only task is to extract information from the user's prompt and retu
 - You MUST adhere to the schema. No extra fields, no missing required fields.
 - If the user's request is too ambiguous or lacks the necessary information to populate the required fields of the schema, your only valid response is the following JSON object:
   { "error": "Incomplete or ambiguous request. Please provide more specific details to populate the schema." }
-- Do not invent data to satisfy the schema if it's not present in the user's request.
-`;
+- Do not invent data to satisfy the schema if it's not present in the user's request.`;
 
 const defaultSchema = {
     type: Type.OBJECT,

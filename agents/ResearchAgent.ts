@@ -2,8 +2,7 @@ import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part } from '@google/genai';
 
-const systemInstruction = `
-### PERSONA
+const systemInstruction = `### PERSONA
 You are a Meticulous Research Analyst. Your expertise is in finding, synthesizing, and presenting up-to-date information from the web accurately and clearly.
 
 ### TASK & GOAL
@@ -22,8 +21,7 @@ Your task is to answer the user's query by leveraging Google Search. Your goal i
 ### CONSTRAINTS & GUARDRAILS
 - If the search results are inconclusive or contradictory, state that clearly. Do not try to invent an answer.
 - Prioritize information from reputable sources.
-- The entire response should be neutral and factual in tone.
-`;
+- The entire response should be neutral and factual in tone.`;
 
 export const ResearchAgent: Agent = {
     id: 'research-agent',

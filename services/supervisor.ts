@@ -1,12 +1,25 @@
 import { orchestrator } from './orchestrator';
 import { Agent, AgentExecuteStream, WorkflowPlan } from '../agents/types';
 import { agentService } from './agent.service';
-import { FileNode } from './github.service';
+import { FileNode, StagedFile } from './github.service';
 import { ViewName, WorkflowStep } from '../App';
 import { FunctionCall, Part } from '@google/genai';
 import { PlannerAgent } from '../agents/PlannerAgent';
+import { knowledgeService } from './knowledge.service';
+import { cleanText } from '../lib/text';
+import { ResearchAgent } from '../agents/ResearchAgent';
 
 const feedbackLog: any[] = [];
+
+interface FullGitContext {
+    fileTree: FileNode[] | null;
+    stagedFiles: StagedFile[];
+}
+
+interface RetryContext {
+    originalPrompt: string;
+    feedback: string;
+}
 
 const formatFileTree = (nodes: FileNode[], indent = 0): string => {
   let result = '';
@@ -42,12 +55,15 @@ const availableTools: { [key: string]: Function } = {
 class Supervisor {
   async handleRequest(
     prompt: string,
-    githubContext: FileNode[] | null,
+    githubContext: FullGitContext,
     callbacks: { setActiveView: (view: ViewName) => void },
     forceAgentId?: string,
+    retryContext?: RetryContext,
   ): Promise<{ agent: Agent; stream: AgentExecuteStream }> {
     
     let selectedAgent: Agent;
+    const effectivePrompt = retryContext ? retryContext.originalPrompt : prompt;
+
     if (forceAgentId) {
       const foundAgent = agentService.getAgents().find(a => a.id === forceAgentId);
       if (!foundAgent) {
@@ -56,25 +72,58 @@ class Supervisor {
       selectedAgent = foundAgent;
       console.log(`Supervisor: Agent execution forced to ${selectedAgent.name}`);
     } else {
-      const orchestratorResult = await orchestrator.selectAgent(prompt);
+      const orchestratorResult = await orchestrator.selectAgent(effectivePrompt);
       selectedAgent = orchestratorResult.agent;
       console.log(`Supervisor: Orchestrator selected agent ${selectedAgent.name}. Reasoning: ${orchestratorResult.reasoning}`);
     }
 
-    let fullPrompt: string | Part[] = prompt;
-    if (selectedAgent.acceptsContext && githubContext && githubContext.length > 0) {
-      console.log(`Supervisor: Adding GitHub context for agent ${selectedAgent.name}.`);
-      const contextString = `For context, the user has a GitHub repository loaded with the following file structure. Use this to inform your response:\n\`\`\`\n${formatFileTree(githubContext)}\`\`\`\n\nBased on that context, please handle the following user request:`;
-      fullPrompt = [{text: contextString}, {text: prompt}];
+    let contextParts: Part[] = [];
+
+    // 1. Add retry context if it exists
+    if (retryContext) {
+        contextParts.push({ text: `A previous attempt to answer this request failed. Please use the following user feedback to improve your response:\n\n[USER FEEDBACK]:\n"${retryContext.feedback}"\n\nBased on that feedback, please try again to answer the original request.` });
     }
-    
+
+    // 2. Add knowledge base context
+    const relevantFacts = await knowledgeService.searchFacts(effectivePrompt);
+    if (relevantFacts.length > 0) {
+        let factContext = "For additional context, here is some potentially relevant information from your knowledge base. Use it to inform your answer:\n\n";
+        factContext += relevantFacts.map(fact => `- ${fact.content}`).join('\n');
+        contextParts.push({ text: factContext });
+    }
+
+    // 3. Add GitHub context
+    if (selectedAgent.acceptsContext && (githubContext.fileTree || githubContext.stagedFiles.length > 0)) {
+        console.log(`Supervisor: Adding GitHub context for agent ${selectedAgent.name}.`);
+        let gitContextString = "The user has a GitHub repository loaded. Use this information to inform your response.\n\n";
+
+        if (githubContext.fileTree && githubContext.fileTree.length > 0) {
+            gitContextString += `### Project File Structure:\n\`\`\`\n${formatFileTree(githubContext.fileTree)}\n\`\`\`\n\n`;
+        }
+        
+        if (githubContext.stagedFiles.length > 0) {
+            gitContextString += "### Content of Staged Files:\n";
+            for (const file of githubContext.stagedFiles) {
+                const cleanedContent = cleanText(file.content);
+                gitContextString += `--- FILE: ${file.path} ---\n\`\`\`\n${cleanedContent}\n\`\`\`\n\n`;
+            }
+        }
+        contextParts.push({ text: gitContextString });
+    }
+
+    // Construct the final prompt
+    const finalPromptParts: Part[] = [
+        ...contextParts,
+        { text: `Based on all the context provided, please handle the following user request:\n\n[USER REQUEST]:\n"${effectivePrompt}"` }
+    ];
+
     if (selectedAgent.id === PlannerAgent.id) {
         console.log(`Supervisor: Executing multi-step plan with ${selectedAgent.name}.`);
-        const stream = this.executePlan(selectedAgent, fullPrompt, callbacks);
+        const stream = this.executePlan(selectedAgent, finalPromptParts, callbacks, contextParts);
         return { agent: selectedAgent, stream };
     } else {
         console.log(`Supervisor: Executing single agent ${selectedAgent.name} with function calling.`);
-        const stream = this.executeAgentWithFunctionCalling(selectedAgent, fullPrompt, callbacks);
+        const stream = this.executeAgentWithFunctionCalling(selectedAgent, finalPromptParts, callbacks);
         return { agent: selectedAgent, stream };
     }
   }
@@ -82,7 +131,8 @@ class Supervisor {
   private async *executePlan(
     planner: Agent,
     prompt: string | Part[],
-    callbacks: { setActiveView: (view: ViewName) => void; }
+    callbacks: { setActiveView: (view: ViewName) => void; },
+    baseContextParts: Part[]
   ): AgentExecuteStream {
     // Step 1: Get the plan from the PlannerAgent
     console.log("Supervisor (Plan): Requesting plan from PlannerAgent.");
@@ -128,8 +178,8 @@ class Supervisor {
             continue;
         }
 
-        // Construct the prompt for the sub-agent
-        const subAgentPrompt = `
+        // Construct the prompt for the sub-agent, including original context
+        const subAgentPromptText = `
         You are one step in a multi-agent plan.
         Previous context from other agents:
         ---
@@ -138,8 +188,11 @@ class Supervisor {
         Your specific task is: "${step.task}"
         Please perform this task and provide the output.
         `;
+        
+        const subAgentPromptParts: Part[] = [...baseContextParts, { text: subAgentPromptText }];
 
-        const agentStream = this.executeAgentWithFunctionCalling(agentToExecute, subAgentPrompt, callbacks);
+
+        const agentStream = this.executeAgentWithFunctionCalling(agentToExecute, subAgentPromptParts, callbacks);
         let stepOutput = '';
 
         for await (const chunk of agentStream) {
@@ -224,6 +277,16 @@ class Supervisor {
     };
     feedbackLog.push(feedback);
     console.log(`Feedback recorded:`, feedback);
+  }
+
+  async saveKnowledgeIfApplicable(agentName: string, content: string): Promise<void> {
+    if (agentName === ResearchAgent.name && content) {
+        console.log(`Supervisor: Saving knowledge from ${agentName}.`);
+        await knowledgeService.addFact({
+            content,
+            source: agentName,
+        });
+    }
   }
 }
 

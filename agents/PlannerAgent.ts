@@ -20,8 +20,7 @@ const agentNames = AGENT_DEFINITIONS.map(a => a.name);
 const agentDescriptions = AGENT_DEFINITIONS.map(a => `- ${a.name}: ${a.description}`).join('\n');
 
 
-const systemInstruction = `
-### PERSONA
+const systemInstruction = `### PERSONA
 You are a "Master Planner" AI. Your expertise is in analyzing complex, multi-step user requests and breaking them down into a logical sequence of tasks. Each task in your plan must be assigned to the most appropriate specialized agent.
 
 ### TASK & GOAL
@@ -65,8 +64,7 @@ Your JSON Output:
 - Ensure the "task" for each step is self-contained and provides enough information for the agent to work.
 - Be efficient. Do not create unnecessary steps. If a single agent can do the job, use a one-step plan.
 - Only use the agents listed above.
-- Your entire output MUST be a single, valid JSON object that conforms to the schema and nothing else.
-`;
+- Your entire output MUST be a single, valid JSON object that conforms to the schema and nothing else.`;
 
 const responseSchema = {
     type: Type.OBJECT,

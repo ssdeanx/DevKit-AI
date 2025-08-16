@@ -1,56 +1,96 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { WorkflowStep } from '../App';
-import { BotIcon, CheckCircleIcon, LoaderIcon } from './icons';
+import { BotIcon, CheckCircleIcon, ChevronDownIcon, LoaderIcon, WorkflowIcon } from './icons';
 import { cn } from '../lib/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/Card';
+import MarkdownRenderer from './MarkdownRenderer';
 
 interface WorkflowStatusProps {
     plan: WorkflowStep[];
 }
 
 const WorkflowStatus: React.FC<WorkflowStatusProps> = ({ plan }) => {
+    const [expandedStep, setExpandedStep] = useState<number | null>(null);
+
     if (!plan || plan.length === 0) {
         return null;
     }
 
+    const toggleExpand = (stepNumber: number) => {
+        setExpandedStep(prev => prev === stepNumber ? null : stepNumber);
+    };
+
     const getStatusIcon = (status: WorkflowStep['status']) => {
         switch (status) {
             case 'completed':
-                return <CheckCircleIcon className="w-4 h-4 text-green-400" />;
+                return <CheckCircleIcon className="w-5 h-5 text-green-400" />;
             case 'in-progress':
-                return <LoaderIcon className="w-4 h-4 text-blue-400 animate-spin" />;
+                return <LoaderIcon className="w-5 h-5 text-primary animate-spin" />;
             case 'pending':
-                return <BotIcon className="w-4 h-4 text-muted-foreground" />;
             default:
-                return null;
+                return <BotIcon className="w-5 h-5 text-muted-foreground" />;
         }
     };
 
     return (
-        <div className="p-4 mb-4 border rounded-lg bg-secondary/50 animate-in">
-            <h3 className="text-sm font-semibold text-foreground mb-3">Executing Plan:</h3>
-            <div className="flex items-center space-x-2 overflow-x-auto pb-2">
-                {plan.map((step, index) => (
-                    <React.Fragment key={step.step}>
-                        <div className={cn(
-                            "flex-shrink-0 flex flex-col items-center text-center p-3 rounded-lg border transition-all duration-300",
-                            step.status === 'in-progress' && 'bg-primary/10 border-primary/50 scale-105',
-                            step.status === 'completed' && 'bg-green-500/10 border-green-500/30 opacity-80',
-                            step.status === 'pending' && 'bg-muted/50 border-border',
-                        )}>
-                            <div className="flex items-center gap-2 mb-1">
-                                {getStatusIcon(step.status)}
-                                <span className="text-sm font-medium text-foreground">{step.agent}</span>
+        <Card className="mb-4 bg-secondary/50 animate-in">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <WorkflowIcon className="w-5 h-5" />
+                    Executing Plan
+                </CardTitle>
+                <CardDescription>The AI is executing a multi-step plan to address your request.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="workflow-timeline">
+                    {plan.map((step, index) => {
+                        const isCompleted = step.status === 'completed';
+                        const isInProgress = step.status === 'in-progress';
+                        const isExpanded = expandedStep === step.step;
+
+                        return (
+                            <div key={step.step} className="timeline-item animate-in">
+                                {index > 0 && plan[index-1].status === 'completed' && <div className="timeline-connector" style={{height: 'calc(100% + 2rem)'}} />}
+                                <div className={cn(
+                                    "timeline-icon border-border",
+                                    isInProgress && "border-primary glowing",
+                                    isCompleted && "border-green-500"
+                                )}>
+                                    {getStatusIcon(step.status)}
+                                </div>
+                                <div className="ml-4">
+                                    <div 
+                                        className={cn("flex justify-between items-start", isCompleted && step.output && "cursor-pointer group")}
+                                        onClick={() => isCompleted && step.output && toggleExpand(step.step)}
+                                    >
+                                        <div className="flex-1">
+                                            <p className={cn(
+                                                "font-semibold text-sm",
+                                                isInProgress && "text-primary",
+                                                isCompleted && "text-green-400"
+                                            )}>
+                                                Step {step.step}: {step.agent}
+                                            </p>
+                                            <p className="text-muted-foreground text-sm">{step.task}</p>
+                                        </div>
+                                        {isCompleted && step.output && (
+                                            <ChevronDownIcon className={cn("w-4 h-4 text-muted-foreground mt-1 ml-2 transition-transform group-hover:text-foreground", isExpanded && "rotate-180")} />
+                                        )}
+                                    </div>
+                                    {isCompleted && step.output && (
+                                        <div className={cn("timeline-output", isExpanded && "expanded")}>
+                                            <div className="mt-2 p-3 bg-background/50 border rounded-md">
+                                                <MarkdownRenderer content={step.output} />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                            <p className="text-xs text-muted-foreground max-w-[150px] truncate" title={step.task}>{step.task}</p>
-                        </div>
-                        {index < plan.length - 1 && (
-                            <div className="w-6 h-px bg-border flex-shrink-0"></div>
-                        )}
-                    </React.Fragment>
-                ))}
-            </div>
-        </div>
+                        );
+                    })}
+                </div>
+            </CardContent>
+        </Card>
     );
 };
 

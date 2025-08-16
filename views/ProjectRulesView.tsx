@@ -10,12 +10,13 @@ import ExamplePrompts from '../components/ExamplePrompts';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { cacheService } from '../services/cache.service';
 import { useSettings } from '../context/SettingsContext';
+import ViewHeader from '../components/ViewHeader';
 
 const ProjectRulesView: React.FC = () => {
   const [request, setRequest] = useState('');
   const [generatedDoc, setGeneratedDoc] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { fileTree, repoUrl } = useContext(GithubContext);
+  const { fileTree, repoUrl, stagedFiles } = useContext(GithubContext);
   const { settings } = useSettings();
 
   const handleGenerate = async () => {
@@ -38,7 +39,7 @@ const ProjectRulesView: React.FC = () => {
     setGeneratedDoc('');
     try {
         console.log(`ProjectRulesView: Generating document for request: "${request}" (no cache)`);
-        const { stream } = await supervisor.handleRequest(request, fileTree, { setActiveView: () => {} }, ProjectRulesAgent.id);
+        const { stream } = await supervisor.handleRequest(request, { fileTree, stagedFiles }, { setActiveView: () => {} }, ProjectRulesAgent.id);
         
         let content = '';
         for await (const chunk of stream) {
@@ -73,10 +74,11 @@ const ProjectRulesView: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
-      <header className="p-6 border-b">
-        <h1 className="text-2xl font-bold">Project Rules Generator</h1>
-        <p className="text-sm text-muted-foreground">Generate contribution guidelines, codes of conduct, and more.</p>
-      </header>
+      <ViewHeader
+        icon={<DocumentIcon className="w-6 h-6" />}
+        title="Project Rules Generator"
+        description="Generate contribution guidelines, codes of conduct, and more."
+      />
       
       <div className="flex-1 flex flex-col md:flex-row gap-6 p-6 overflow-hidden">
         <Card className="flex flex-col w-full md:w-1/3 h-full">
@@ -84,7 +86,7 @@ const ProjectRulesView: React.FC = () => {
                 <CardTitle>Document Request</CardTitle>
                 <CardDescription>What kind of document do you need?</CardDescription>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col gap-4">
+            <CardContent className="flex-1 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
                  <ExamplePrompts prompts={examplePrompts} onSelectPrompt={setRequest} />
                 <Textarea
                     value={request}
@@ -103,16 +105,17 @@ const ProjectRulesView: React.FC = () => {
              <CardTitle>Generated Document</CardTitle>
              {generatedDoc && <Button onClick={handleCopy} variant="secondary">Copy</Button>}
           </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto">
+          <CardContent className="flex-1 overflow-y-auto custom-scrollbar">
             {generatedDoc ? (
               <MarkdownRenderer content={generatedDoc} />
             ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                <div className="text-center">
-                  <DocumentIcon className="w-12 h-12 mx-auto mb-2" />
-                  <p>Your generated document will appear here.</p>
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                    <div className="text-center p-6 border-2 border-dashed rounded-lg">
+                        <DocumentIcon className="w-12 h-12 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-foreground">Ready to build your community?</h3>
+                        <p>Request a document to see the generated content appear here.</p>
+                    </div>
                 </div>
-              </div>
             )}
           </CardContent>
         </Card>

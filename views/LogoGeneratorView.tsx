@@ -9,6 +9,7 @@ import { Slider } from '../components/ui/Slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select';
 import { convertPngToSvg } from '../lib/image';
 import ExamplePrompts from '../components/ExamplePrompts';
+import ViewHeader from '../components/ViewHeader';
 
 
 type AspectRatio = "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
@@ -80,13 +81,14 @@ const LogoGeneratorView: React.FC = () => {
   ];
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto">
-      <header className="p-6 border-b sticky top-0 bg-background/95 backdrop-blur z-10">
-        <h1 className="text-2xl font-bold">Logo & Banner Generator</h1>
-        <p className="text-sm text-muted-foreground">Design logos and banners for your brand or project.</p>
-      </header>
+    <div className="flex-1 flex flex-col h-full bg-background">
+      <ViewHeader
+        icon={<ImageIcon className="w-6 h-6" />}
+        title="Logo & Banner Generator"
+        description="Design logos and banners for your brand or project."
+      />
 
-      <div className="flex-1 flex flex-col p-6 gap-6">
+      <div className="flex-1 flex flex-col p-6 gap-6 overflow-y-auto custom-scrollbar">
         <Card>
             <CardHeader>
                 <CardTitle>Generation Settings</CardTitle>
@@ -148,10 +150,10 @@ const LogoGeneratorView: React.FC = () => {
                 <div key={index} className="group relative border rounded-lg overflow-hidden">
                   <img src={`data:image/png;base64,${img}`} alt={`Generated image ${index + 1}`} className="w-full h-full object-contain aspect-video bg-muted" />
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                      <Button onClick={() => handleDownloadPng(img, index)} size="icon" variant="secondary" title="Download PNG">
+                      <Button onClick={() => handleDownloadPng(img, index)} size="icon" variant="secondary" data-tooltip="Download PNG">
                           <DownloadIcon className="w-5 h-5" />
                       </Button>
-                      <Button onClick={() => handleDownloadSvg(img, index)} size="icon" variant="secondary" title="Download as SVG (Beta)">
+                      <Button onClick={() => handleDownloadSvg(img, index)} size="icon" variant="secondary" data-tooltip="Download as SVG (Beta)">
                           <FileSvgIcon className="w-5 h-5" />
                       </Button>
                   </div>
@@ -161,12 +163,15 @@ const LogoGeneratorView: React.FC = () => {
           )}
 
           {!isLoading && generatedImages.length === 0 && !error && (
-             <div className="flex-1 flex items-center justify-center border-2 border-dashed border-border rounded-lg h-full min-h-[300px]">
-               <div className="text-center text-muted-foreground">
-                  <ImageIcon className="w-12 h-12 mx-auto mb-2" />
-                  <p>Your generated logos will appear here.</p>
-               </div>
-            </div>
+             <Card className="flex-1 flex items-center justify-center border-2 border-dashed border-border h-full min-h-[300px] bg-transparent shadow-none">
+                <CardContent className="text-center text-muted-foreground p-6">
+                    <div className="mx-auto w-fit p-4 bg-secondary rounded-full mb-4">
+                        <ImageIcon className="w-10 h-10" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-foreground">Design your brand</h3>
+                    <p>Enter a prompt above and click "Generate" to create your new logo or banner.</p>
+                </CardContent>
+             </Card>
           )}
         </div>
       </div>

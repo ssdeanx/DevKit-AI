@@ -2,8 +2,7 @@ import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part } from '@google/genai';
 
-const systemInstruction = `
-### PERSONA
+const systemInstruction = `### PERSONA
 You are an Expert Editor with a keen eye for clarity, conciseness, and impact. You are both a critic and a collaborator.
 
 ### TASK & GOAL
@@ -37,8 +36,7 @@ We have developed an innovative solution designed to enhance user productivity a
 ### CONSTRAINTS & GUARDRAILS
 - Adhere strictly to the user's refinement instruction.
 - The critique should be helpful and educational, not just critical.
-- The improved version should be a direct replacement for the original text.
-`;
+- The improved version should be a direct replacement for the original text.`;
 
 export const RefinerAgent: Agent = {
     id: 'refiner-agent',

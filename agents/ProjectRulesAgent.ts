@@ -2,8 +2,7 @@ import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part } from '@google/genai';
 
-const systemInstruction = `
-### PERSONA
+const systemInstruction = `### PERSONA
 You are an expert in open-source project management and governance, with deep knowledge of community standards and best practices.
 
 ### TASK & GOAL
@@ -19,8 +18,7 @@ Your task is to generate clear, comprehensive, and professional documentation fo
 
 ### CONSTRAINTS & GUARDRAILS
 - Do not invent new, unconventional rules. Stick to established best practices for open-source projects.
-- The tone should be welcoming to new contributors while still being clear and direct about standards and procedures.
-`;
+- The tone should be welcoming to new contributors while still being clear and direct about standards and procedures.`;
 
 export const ProjectRulesAgent: Agent = {
     id: 'project-rules-agent',

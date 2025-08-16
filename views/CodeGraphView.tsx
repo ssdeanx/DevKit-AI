@@ -10,23 +10,25 @@ import ReactFlow, {
 } from 'reactflow';
 import type { Node, Edge, NodeChange, EdgeChange } from 'reactflow';
 import ELK from 'elkjs';
+import type { ElkNode, ElkExtendedEdge } from 'elkjs';
 import { GithubContext } from '../context/GithubContext';
 import { supervisor } from '../services/supervisor';
 import { CodeGraphAgent } from '../agents/CodeGraphAgent';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { CodeGraphIcon, CloseIcon } from '../components/icons';
+import { CodeGraphIcon, CloseIcon, LoaderIcon } from '../components/icons';
 import { cacheService } from '../services/cache.service';
 import { useSettings } from '../context/SettingsContext';
 import { cn } from '../lib/utils';
+import ViewHeader from '../components/ViewHeader';
 
 const getNodeColor = (type?: string) => {
     switch (type) {
         case 'entry': return 'hsl(var(--primary))';
         case 'view': return 'hsl(var(--ring))';
-        case 'component': return '#16a34a'; // Green-600
-        case 'service': return '#c026d3'; // Fuchsia-600
-        case 'config': return '#ca8a04'; // Yellow-600
+        case 'component': return 'hsl(var(--success))';
+        case 'service': return 'hsl(var(--purple))';
+        case 'config': return 'hsl(var(--warning))';
         case 'group': return 'hsl(var(--border))';
         default: return 'hsl(var(--muted-foreground))';
     }
@@ -34,36 +36,60 @@ const getNodeColor = (type?: string) => {
 
 const elk = new ELK();
 
-const getLayoutedElements = async (nodes: Node[], edges: Edge[]) => {
-    const graph = {
+const getLayoutedElements = async (nodes: Node[], edges: Edge[]): Promise<{ nodes: Node[], edges: Edge[] }> => {
+    const elkNodes: ElkNode[] = nodes.map(node => ({
+        id: node.id,
+        width: node.width ?? 150,
+        height: node.height ?? 40,
+    }));
+
+    const elkEdges: ElkExtendedEdge[] = edges.map(edge => ({
+        id: edge.id,
+        sources: [edge.source],
+        targets: [edge.target],
+    }));
+
+    const graph: ElkNode = {
         id: 'root',
         layoutOptions: { 
             'elk.algorithm': 'layered',
             'elk.direction': 'RIGHT',
             'elk.spacing.nodeNode': '80' 
         },
-        children: nodes.map(node => ({
-            ...node,
-            width: node.width ?? 150,
-            height: node.height ?? 40,
-        })),
-        edges: edges,
+        children: elkNodes,
+        edges: elkEdges,
     };
 
     const layoutedGraph = await elk.layout(graph);
     
+    const newNodes: Node[] = layoutedGraph.children?.map(elkNode => {
+        const originalNode = nodes.find(n => n.id === elkNode.id);
+        return {
+            ...originalNode!,
+            position: { x: elkNode.x!, y: elkNode.y! },
+        };
+    }) || [];
+    
+    const newEdges: Edge[] = layoutedGraph.edges?.map(elkEdge => {
+        const originalEdge = edges.find(e => e.id === elkEdge.id);
+        if (!originalEdge) return null;
+        
+        return {
+            ...originalEdge,
+            id: elkEdge.id,
+            source: elkEdge.sources[0],
+            target: elkEdge.targets[0],
+        };
+    }).filter(Boolean) as Edge[] || [];
+
     return {
-        nodes: layoutedGraph.children?.map(node => ({
-            ...node,
-            // elkjs returns x, y at the top-left, react-flow needs it at the center
-            position: { x: node.x!, y: node.y! },
-        })) || [],
-        edges: layoutedGraph.edges || [],
+        nodes: newNodes,
+        edges: newEdges,
     };
 };
 
 const CodeGraphView: React.FC = () => {
-  const { fileTree, repoUrl, isLoading: isRepoLoading } = useContext(GithubContext);
+  const { fileTree, repoUrl, stagedFiles, isLoading: isRepoLoading } = useContext(GithubContext);
   const { settings } = useSettings();
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
@@ -109,7 +135,7 @@ const CodeGraphView: React.FC = () => {
     let graphJsonString = '';
     try {
       const prompt = "Generate a code graph for the current project structure, classifying nodes and grouping them by directory. Do not calculate positions.";
-      const { stream } = await supervisor.handleRequest(prompt, fileTree, { setActiveView: () => {} }, CodeGraphAgent.id);
+      const { stream } = await supervisor.handleRequest(prompt, { fileTree, stagedFiles }, { setActiveView: () => {} }, CodeGraphAgent.id);
       
       for await (const chunk of stream) {
         if (chunk.type === 'content') {
@@ -145,7 +171,7 @@ const CodeGraphView: React.FC = () => {
     } finally {
       setIsGraphLoading(false);
     }
-  }, [fileTree, repoUrl, settings.isCacheEnabled]);
+  }, [fileTree, repoUrl, settings.isCacheEnabled, stagedFiles]);
 
   const handleSummarizeNode = async () => {
     if (!selectedNode) return;
@@ -153,7 +179,7 @@ const CodeGraphView: React.FC = () => {
     setSummary(null);
     try {
       const prompt = `Based on the file path "${selectedNode.id}", what is the likely purpose of this file? Provide a one-sentence summary.`;
-      const { stream } = await supervisor.handleRequest(prompt, fileTree, { setActiveView: () => {} }, 'chat-agent');
+      const { stream } = await supervisor.handleRequest(prompt, { fileTree, stagedFiles }, { setActiveView: () => {} }, 'chat-agent');
       let content = '';
       for await (const chunk of stream) {
         if (chunk.type === 'content') content += chunk.content;
@@ -171,23 +197,28 @@ const CodeGraphView: React.FC = () => {
   const onNodeMouseLeave = () => setHoveredNodeId(null);
   
   useEffect(() => {
-    const connectedEdges = hoveredNodeId ? edges.filter(e => e.source === hoveredNodeId || e.target === hoveredNodeId) : [];
+    if (!hoveredNodeId) {
+        setNodes(nds => nds.map(n => ({ ...n, className: '' })));
+        setEdges(eds => eds.map(e => ({ ...e, className: '' })));
+        return;
+    }
+    const connectedEdges = edges.filter(e => e.source === hoveredNodeId || e.target === hoveredNodeId);
     const connectedNodeIds = new Set(connectedEdges.flatMap(e => [e.source, e.target]));
     
     setNodes(nds =>
         nds.map(n => ({
             ...n,
-            className: cn({ 'dimmed': hoveredNodeId && !connectedNodeIds.has(n.id) && n.id !== hoveredNodeId }),
+            className: cn({ 'dimmed': !connectedNodeIds.has(n.id) && n.id !== hoveredNodeId }),
         }))
     );
      setEdges(eds =>
         eds.map(e => ({
             ...e,
-            className: cn({ 'dimmed': hoveredNodeId && !connectedEdges.includes(e) }),
+            className: cn({ 'dimmed': !connectedEdges.includes(e) }),
         }))
     );
 
-  }, [hoveredNodeId]);
+  }, [hoveredNodeId, edges]);
 
 
   useEffect(() => {
@@ -203,10 +234,11 @@ const CodeGraphView: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
-      <header className="p-6 border-b z-10">
-        <h1 className="text-2xl font-bold">Code Graph</h1>
-        <p className="text-sm text-muted-foreground">Visualize the architecture of your loaded GitHub repository.</p>
-      </header>
+      <ViewHeader
+        icon={<CodeGraphIcon className="w-6 h-6" />}
+        title="Code Graph"
+        description="Visualize the architecture of your loaded GitHub repository."
+      />
       
       <div className="flex-1 relative">
         <ReactFlow
@@ -284,17 +316,32 @@ const CodeGraphView: React.FC = () => {
             </div>
         )}
 
+        {isGraphLoading && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-20 animate-in">
+                <LoaderIcon className="w-12 h-12 text-primary animate-spin" />
+                <h2 className="text-xl font-semibold mt-6 text-foreground">Generating Code Graph...</h2>
+                <p className="text-muted-foreground mt-2">The AI architect is analyzing your repository structure.</p>
+                <p className="text-muted-foreground text-sm">This may take a moment.</p>
+            </div>
+        )}
+
         {!isGraphLoading && nodes.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="text-center text-muted-foreground p-4 bg-background/50 rounded-lg">
-                    <CodeGraphIcon className="w-16 h-16 mx-auto mb-4" />
-                    <h2 className="text-xl font-semibold">Code Graph Visualizer</h2>
-                    <p>
-                        {repoUrl 
-                            ? "Click 'Generate Graph' to see your project's structure."
-                            : "Go to the 'GitHub Inspector' tab to load a repository first."}
-                    </p>
-                </div>
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+                <Card className="text-center text-muted-foreground p-8 max-w-md bg-card/80 backdrop-blur-sm">
+                    <CardHeader>
+                        <div className="mx-auto w-fit p-4 bg-secondary rounded-full mb-4">
+                            <CodeGraphIcon className="w-12 h-12 text-foreground" />
+                        </div>
+                        <CardTitle className="text-xl text-foreground">Code Graph Visualizer</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p>
+                            {repoUrl 
+                                ? "Your project is loaded. Click the 'Generate Graph' button to visualize its structure."
+                                : "Go to the 'GitHub Inspector' tab to load a repository first, then come back here to generate the graph."}
+                        </p>
+                    </CardContent>
+                </Card>
             </div>
         )}
       </div>

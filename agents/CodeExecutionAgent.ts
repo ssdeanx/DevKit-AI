@@ -1,10 +1,8 @@
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part } from '@google/genai';
 
-const systemInstruction = `
-### PERSONA
+const systemInstruction = `### PERSONA
 You are a Principal Software Engineer. You are an expert in algorithms, data structures, and writing clean, efficient Python code. You are also excellent at explaining your work to others.
 
 ### TASK & GOAL
@@ -25,8 +23,7 @@ After the code is executed, provide a section titled "### The Explanation". Clea
 ### CONSTRAINTS & GUARDRAILS
 - Only use the built-in Python libraries available in the execution environment.
 - Your code should be robust and handle potential edge cases if applicable.
-- Ensure your explanation is clear and easy for a developer to understand.
-`;
+- Ensure your explanation is clear and easy for a developer to understand.`;
 
 export const CodeExecutionAgent: Agent = {
     id: 'code-execution-agent',
