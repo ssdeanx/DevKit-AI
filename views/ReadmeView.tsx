@@ -1,3 +1,5 @@
+
+
 import React, { useState, useContext, useEffect } from 'react';
 import { supervisor } from '../services/supervisor';
 import { GithubContext } from '../context/GithubContext';
@@ -13,6 +15,7 @@ import { useSettings } from '../context/SettingsContext';
 import ViewHeader from '../components/ViewHeader';
 import { useAsyncOperation } from '../hooks/useAsyncOperation';
 import EmptyState from '../components/EmptyState';
+import RepoStatusIndicator from '../components/RepoStatusIndicator';
 
 const ReadmeView: React.FC = () => {
   const [description, setDescription] = useState('');
@@ -71,10 +74,10 @@ const ReadmeView: React.FC = () => {
   };
   
   const examplePrompts = [
-    "A personal portfolio website built with React and Three.js.",
-    "A Python script that automates daily data backups to an S3 bucket.",
-    "A mobile app for tracking personal fitness goals, built with Flutter.",
-    "A Discord bot for community management written in Node.js."
+    "Generate a README for a CLI tool written in Go that processes CSV files.",
+    "Create a professional README for a React component library published on NPM.",
+    "Draft a README for a backend service built with Node.js, Express, and PostgreSQL.",
+    "Generate a README for an open-source data visualization project using D3.js."
   ];
 
   return (
@@ -92,7 +95,8 @@ const ReadmeView: React.FC = () => {
                 <CardDescription>Provide a description and context for your project.</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
-                <div className="overflow-y-auto custom-scrollbar pr-2">
+                <RepoStatusIndicator className="mb-2" />
+                <div className="overflow-y-auto custom-scrollbar pr-2 flex-1">
                     <ExamplePrompts prompts={examplePrompts} onSelectPrompt={setDescription} />
                     <Textarea
                         value={description}
@@ -103,7 +107,7 @@ const ReadmeView: React.FC = () => {
                 </div>
                 <Button
                     onClick={generateReadmeOperation.execute}
-                    disabled={generateReadmeOperation.isLoading}
+                    disabled={generateReadmeOperation.isLoading || !repoUrl}
                     size="lg"
                     className="mt-auto"
                 >

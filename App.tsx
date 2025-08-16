@@ -1,6 +1,6 @@
 
 
-import React, { useState, useEffect, useContext } from 'react';
+import React from 'react';
 import Sidebar from './components/Sidebar';
 import ChatView from './views/ChatView';
 import ReadmeView from './views/ReadmeView';
@@ -13,9 +13,10 @@ import GithubInspectorView from './views/GithubInspectorView';
 import HistoryView from './views/HistoryView';
 import { SettingsProvider } from './context/SettingsContext';
 import CodeGraphView from './views/CodeGraphView';
-import { DocumentIcon, DatabaseIcon } from './components/icons';
+import { DocumentIcon } from './components/icons';
 import MemoryView from './views/MemoryView';
 import { ToastProvider } from './context/ToastContext';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 
 export type ViewName = 
   | 'chat' 
@@ -38,7 +39,7 @@ export interface WorkflowStep {
 }
 
 const StagedFilesIndicator: React.FC = () => {
-    const { stagedFiles } = useContext(GithubContext);
+    const { stagedFiles } = React.useContext(GithubContext);
 
     if (stagedFiles.length === 0) {
         return null;
@@ -47,7 +48,7 @@ const StagedFilesIndicator: React.FC = () => {
     return (
         <div 
             className="absolute bottom-6 right-6 z-30 glass-effect p-3 rounded-full shadow-lg"
-            title={`${stagedFiles.length} file(s) staged for context`}
+            data-tooltip={`${stagedFiles.length} file(s) staged for context`}
         >
             <div className="relative">
                 <DocumentIcon className="w-6 h-6 text-primary" />
@@ -61,17 +62,16 @@ const StagedFilesIndicator: React.FC = () => {
 
 
 const App: React.FC = () => {
-  const [activeView, setActiveView] = useState<ViewName>('chat');
-  const [viewKey, setViewKey] = useState(Date.now()); // Used to re-trigger animations
+  const [activeView, setActiveView] = React.useState<ViewName>('chat');
 
-  useEffect(() => {
-    setViewKey(Date.now());
-  }, [activeView]);
-
-  useEffect(() => {
+  React.useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      document.documentElement.style.setProperty('--x', `${e.clientX}px`);
-      document.documentElement.style.setProperty('--y', `${e.clientY}px`);
+        const cards = document.querySelectorAll('.card-glow-border');
+        cards.forEach(card => {
+            const rect = card.getBoundingClientRect();
+            (card as HTMLElement).style.setProperty('--x', `${e.clientX - rect.left}px`);
+            (card as HTMLElement).style.setProperty('--y', `${e.clientY - rect.top}px`);
+        });
     };
     window.addEventListener('mousemove', handleMouseMove);
     return () => {
@@ -106,42 +106,42 @@ const App: React.FC = () => {
     }
   };
 
-  return (
-    <SettingsProvider>
-      <GithubProvider>
-        <ToastProvider>
-            <div className="flex h-screen bg-background text-foreground font-sans relative overflow-hidden p-4 gap-4">
-            <div className="spotlight"></div>
-            {/* Background Effects */}
-            <div className="absolute top-0 left-0 w-full h-full -z-10 overflow-hidden background-grid">
-                <div 
-                className="absolute w-[80vw] h-[80vh] bg-primary/5 rounded-full blur-[150px] animate-aurora-bg"
-                style={{
-                    '--aurora-start-x': '0%', '--aurora-start-y': '0%', 
-                    '--aurora-mid-x': '50%', '--aurora-mid-y': '100%',
-                    '--aurora-end-x': '100%', '--aurora-end-y': '0%'} as React.CSSProperties}
-                ></div>
-                <div 
-                className="absolute w-[60vw] h-[70vh] bg-secondary/10 rounded-full blur-[120px] animate-aurora-bg"
-                style={{
-                    animationDelay: '15s', 
-                    '--aurora-start-x': '100%', '--aurora-start-y': '100%', 
-                    '--aurora-mid-x': '0%', '--aurora-mid-y': '50%',
-                    '--aurora-end-x': '0%', '--aurora-end-y': '0%'} as React.CSSProperties}
-                ></div>
-            </div>
+  const viewVariants = {
+      initial: { opacity: 0, scale: 0.98 },
+      animate: { opacity: 1, scale: 1 },
+      exit: { opacity: 0, scale: 0.98 },
+  };
 
-            <Sidebar activeView={activeView} setActiveView={setActiveView} />
-            <main className="flex-1 flex flex-col overflow-hidden z-10 rounded-lg border bg-card/50 backdrop-blur-lg shadow-2xl shadow-black/10">
-                <div key={viewKey} className="animate-in flex-1 flex flex-col overflow-y-auto custom-scrollbar">
-                {renderView()}
+  return (
+    <MotionConfig reducedMotion="user">
+        <SettingsProvider>
+        <GithubProvider>
+            <ToastProvider>
+                <div className="flex h-screen bg-background text-foreground font-sans relative overflow-hidden p-4 gap-4">
+                    <div className="background-noise"></div>
+                    <Sidebar activeView={activeView} setActiveView={setActiveView} />
+                    <main className="flex-1 flex flex-col overflow-hidden z-10 glass-effect rounded-lg">
+                        <AnimatePresence mode="wait">
+                             <motion.div
+                                key={activeView}
+                                variants={viewVariants}
+                                initial="initial"
+                                animate="animate"
+                                exit="exit"
+                                transition={{ duration: 0.2, ease: 'easeInOut' }}
+                                className="flex-1 flex flex-col overflow-y-auto custom-scrollbar"
+                                id="main-scroll-container"
+                             >
+                                {renderView()}
+                            </motion.div>
+                        </AnimatePresence>
+                    </main>
+                    <StagedFilesIndicator />
                 </div>
-            </main>
-            <StagedFilesIndicator />
-            </div>
-        </ToastProvider>
-      </GithubProvider>
-    </SettingsProvider>
+            </ToastProvider>
+        </GithubProvider>
+        </SettingsProvider>
+    </MotionConfig>
   );
 };
 

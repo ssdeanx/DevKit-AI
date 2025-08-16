@@ -1,3 +1,5 @@
+
+
 import React, { useState, useContext } from 'react';
 import { supervisor } from '../services/supervisor';
 import { GithubContext } from '../context/GithubContext';
@@ -11,6 +13,7 @@ import MarkdownRenderer from '../components/MarkdownRenderer';
 import { cacheService } from '../services/cache.service';
 import { useSettings } from '../context/SettingsContext';
 import ViewHeader from '../components/ViewHeader';
+import RepoStatusIndicator from '../components/RepoStatusIndicator';
 
 const ProjectRulesView: React.FC = () => {
   const [request, setRequest] = useState('');
@@ -66,37 +69,38 @@ const ProjectRulesView: React.FC = () => {
   };
 
   const examplePrompts = [
-    "A standard Code of Conduct based on the Contributor Covenant.",
-    "Contribution guidelines for a JavaScript project using Prettier and ESLint.",
-    "A security policy (SECURITY.md) explaining how to report vulnerabilities.",
-    "A simple governance model for a small open-source project."
+    "Generate coding standards for a TypeScript/React project, including rules for component structure and state management.",
+    "Create a style guide for Python code, specifying docstring formats and naming conventions.",
+    "Define API design principles for a RESTful service, covering endpoint naming, versioning, and error handling.",
+    "Generate a 'how-to' guide for debugging this application, based on the loaded source code."
   ];
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
       <ViewHeader
         icon={<DocumentIcon className="w-6 h-6" />}
-        title="Project Rules Generator"
-        description="Generate contribution guidelines, codes of conduct, and more."
+        title="AI Project Constitution"
+        description="Define coding standards and architectural rules for AI agents."
       />
       
       <div className="flex-1 flex flex-col md:flex-row gap-6 p-6 overflow-hidden">
         <Card className="flex flex-col w-full md:w-1/3 h-full">
             <CardHeader>
-                <CardTitle>Document Request</CardTitle>
-                <CardDescription>What kind of document do you need?</CardDescription>
+                <CardTitle>Constitution Request</CardTitle>
+                <CardDescription>What standards should the AI follow for this project?</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
-                <div className="overflow-y-auto custom-scrollbar pr-2">
+                 <RepoStatusIndicator className="mb-2" />
+                <div className="overflow-y-auto custom-scrollbar pr-2 flex-1">
                     <ExamplePrompts prompts={examplePrompts} onSelectPrompt={setRequest} />
                     <Textarea
                         value={request}
                         onChange={(e) => setRequest(e.target.value)}
-                        placeholder="e.g., 'Create a code of conduct based on the Contributor Covenant.'"
+                        placeholder="e.g., 'Generate coding standards for this Python project, focusing on naming conventions and error handling.'"
                         className="h-48 resize-none"
                     />
                 </div>
-                <Button onClick={handleGenerate} disabled={isLoading} size="lg" className="mt-auto">
+                <Button onClick={handleGenerate} disabled={isLoading || !repoUrl} size="lg" className="mt-auto">
                     {isLoading ? 'Generating...' : "Generate Document"}
                 </Button>
             </CardContent>
@@ -114,7 +118,7 @@ const ProjectRulesView: React.FC = () => {
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                     <div className="text-center p-6 border-2 border-dashed rounded-lg">
                         <DocumentIcon className="w-12 h-12 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold text-foreground">Ready to build your community?</h3>
+                        <h3 className="text-lg font-semibold text-foreground">Ready to build your AI constitution?</h3>
                         <p>Request a document to see the generated content appear here.</p>
                     </div>
                 </div>

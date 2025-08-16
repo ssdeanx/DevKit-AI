@@ -1,3 +1,5 @@
+
+
 import React, { useState, useContext, useCallback, useEffect } from 'react';
 import ReactFlow, {
   Controls,
@@ -22,14 +24,15 @@ import { useSettings } from '../context/SettingsContext';
 import { useAsyncOperation } from '../hooks/useAsyncOperation';
 import EmptyState from '../components/EmptyState';
 import ViewHeader from '../components/ViewHeader';
+import RepoStatusIndicator from '../components/RepoStatusIndicator';
 
 const getNodeColor = (type?: string) => {
     switch (type) {
-        case 'entry': return 'hsl(var(--primary))';
-        case 'view': return 'hsl(var(--ring))';
-        case 'component': return 'hsl(var(--success))';
-        case 'service': return 'hsl(var(--purple))';
-        case 'config': return 'hsl(var(--warning))';
+        case 'entry': return 'hsl(var(--dv-pink))';
+        case 'view': return 'hsl(var(--dv-purple))';
+        case 'component': return 'hsl(var(--dv-blue))';
+        case 'service': return 'hsl(var(--dv-teal))';
+        case 'config': return 'hsl(var(--dv-orange))';
         case 'group': return 'hsl(var(--border))';
         default: return 'hsl(var(--muted-foreground))';
     }
@@ -224,6 +227,26 @@ const CodeGraphView: React.FC = () => {
   
   const isButtonDisabled = isRepoLoading || isGraphLoading || !repoUrl;
 
+  const Legend = () => {
+      const nodeTypes = ['entry', 'view', 'component', 'service', 'config', 'other'];
+      return (
+        <Card className="glass-effect w-48">
+            <CardHeader className="p-3">
+                <CardTitle className="text-sm">Legend</CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 pt-0 space-y-1">
+                {nodeTypes.map(type => (
+                    <div key={type} className="flex items-center text-xs">
+                        <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: getNodeColor(type) }}></div>
+                        <span className="capitalize">{type}</span>
+                    </div>
+                ))}
+            </CardContent>
+        </Card>
+      )
+  };
+
+
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
       <ViewHeader
@@ -248,19 +271,7 @@ const CodeGraphView: React.FC = () => {
           <Controls />
           <MiniMap nodeColor={(node) => getNodeColor(node.data.type)} nodeStrokeWidth={3} zoomable pannable />
           <Panel position="bottom-left">
-            <Card className="glass-effect w-48">
-                <CardHeader className="p-3">
-                    <CardTitle className="text-sm">Legend</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 pt-0 space-y-1">
-                    {['entry', 'view', 'component', 'service', 'config', 'other'].map(type => (
-                        <div key={type} className="flex items-center text-xs">
-                            <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: getNodeColor(type) }}></div>
-                            <span className="capitalize">{type}</span>
-                        </div>
-                    ))}
-                </CardContent>
-            </Card>
+            <Legend />
           </Panel>
         </ReactFlow>
 
@@ -268,13 +279,9 @@ const CodeGraphView: React.FC = () => {
            <Card className="glass-effect">
                 <CardHeader>
                     <CardTitle>Generate Project Graph</CardTitle>
-                    <CardDescription>
-                        {repoUrl 
-                            ? <>Analyzing: <span className="font-mono text-primary/80">{repoUrl.split('/').slice(-2).join('/')}</span></> 
-                            : 'Load a repo in the GitHub Inspector to begin.'}
-                    </CardDescription>
                 </CardHeader>
                 <CardContent>
+                     <RepoStatusIndicator className="mb-4" />
                     <Button onClick={handleGenerateGraph} disabled={isButtonDisabled} size="lg" className="w-full">
                         {isGraphLoading ? 'Generating...' : 'Generate Graph'}
                     </Button>

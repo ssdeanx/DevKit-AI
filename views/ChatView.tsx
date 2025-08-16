@@ -1,19 +1,22 @@
 
-import React, { useState, useEffect, useLayoutEffect, useContext } from 'react';
+
+import React, { useState, useEffect, useLayoutEffect, useContext, useRef } from 'react';
 import { supervisor } from '../services/supervisor';
-import { SparklesIcon, ChatIcon } from '../components/icons';
+import { SparklesIcon, ChatIcon, CodeGraphIcon, DocumentIcon, GithubIcon } from '../components/icons';
 import { GithubContext } from '../context/GithubContext';
 import { historyService } from '../services/history.service';
 import { ViewName, WorkflowStep } from '../App';
 import { FunctionCall, GroundingChunk } from '@google/genai';
 import WorkflowVisualizer from '../components/WorkflowVisualizer';
-import ExamplePrompts from '../components/ExamplePrompts';
 import ViewHeader from '../components/ViewHeader';
 import ChatMessage from '../components/ChatMessage';
 import ChatInput from '../components/ChatInput';
 import FeedbackModal from '../components/FeedbackModal';
 import { shortTermMemoryService } from '../services/short-term-memory.service';
 import { Button } from '../components/ui/Button';
+import RepoStatusIndicator from '../components/RepoStatusIndicator';
+import FunctionCallMessage from '../components/FunctionCallMessage';
+import { motion } from 'framer-motion';
 
 export type MessageAuthor = 'user' | 'ai';
 export type Feedback = 'positive' | 'negative' | null;
@@ -26,7 +29,6 @@ export interface Message {
   agentName?: string;
   feedback: Feedback;
   functionCall?: FunctionCall;
-  isFunctionCallMessage?: boolean;
   sources?: GroundingChunk[];
 }
 
@@ -41,6 +43,78 @@ export interface FeedbackModalState {
     feedbackText: string;
 }
 
+const useAutoScroll = (dependencies: any[]): React.RefObject<HTMLDivElement> => {
+    const scrollRef = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+        const container = scrollRef.current;
+        if (container) {
+            const isScrolledToBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 100;
+            if (isScrolledToBottom) {
+                 container.scrollTop = container.scrollHeight;
+            }
+        }
+    }, dependencies);
+    return scrollRef;
+};
+
+const BentoPromptExamples: React.FC<{ onSelectPrompt: (prompt: string) => void }> = ({ onSelectPrompt }) => {
+    const examples = [
+        {
+            title: "Analyze Repository",
+            description: "Identify potential refactoring opportunities in the staged files.",
+            icon: <GithubIcon className="w-16 h-16" />,
+            prompt: "Analyze the staged files and identify potential refactoring opportunities.",
+        },
+        {
+            title: "Generate README",
+            description: "Create a professional README.md for the loaded project.",
+            icon: <DocumentIcon className="w-16 h-16" />,
+            prompt: "Generate a professional README for this project based on the staged files.",
+        },
+        {
+            title: "Visualize Code",
+            description: "Generate a dependency graph of the current repository.",
+            icon: <CodeGraphIcon className="w-16 h-16" />,
+            prompt: "Generate a code graph for this repository.",
+        }
+    ];
+
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: {
+            opacity: 1,
+            transition: { staggerChildren: 0.1, delayChildren: 0.2 },
+        },
+    };
+
+    const itemVariants = {
+        hidden: { y: 20, opacity: 0 },
+        visible: { y: 0, opacity: 1 },
+    };
+
+    return (
+        <motion.div
+            className="bento-grid"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+        >
+            {examples.map((item) => (
+                <motion.div
+                    key={item.title}
+                    className="bento-item"
+                    variants={itemVariants}
+                    onClick={() => onSelectPrompt(item.prompt)}
+                >
+                    <h3>{item.title}</h3>
+                    <p>{item.description}</p>
+                    <div className="bento-icon">{item.icon}</div>
+                </motion.div>
+            ))}
+        </motion.div>
+    );
+};
+
 const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setActiveView }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -48,20 +122,12 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
   const [workflowPlan, setWorkflowPlan] = useState<WorkflowStep[] | null>(null);
   const [feedbackModal, setFeedbackModal] = useState<FeedbackModalState>({ isOpen: false, messageId: null, feedbackText: '' });
   const { repoUrl, fileTree, stagedFiles } = useContext(GithubContext);
+  const scrollRef = useAutoScroll([messages, workflowPlan]);
 
-  // Load persistent history on initial mount only
   useEffect(() => {
-    setMessages(historyService.getHistory().map(entry => ({...entry, feedback: null})));
+    const history = historyService.getHistory();
+    setMessages(history.filter(entry => !entry.functionCall).map(entry => ({...entry, feedback: null})));
   }, []);
-
-  const scrollToBottom = () => {
-    const container = document.querySelector('#main-scroll-container');
-    if (container) {
-        container.scrollTop = container.scrollHeight;
-    }
-  };
-
-  useLayoutEffect(scrollToBottom, [messages, workflowPlan]);
 
   const executeAiTurn = async (prompt: string, retryContext?: RetryContext) => {
     setIsLoading(true);
@@ -81,8 +147,7 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
             content: '',
             thoughts: '',
             agentName: agent.name, 
-            feedback: null,
-            isFunctionCallMessage: false
+            feedback: null
         };
         setMessages(prev => [...prev, initialAiMessage]);
 
@@ -90,7 +155,6 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
         let finalThoughts = '';
         let finalFunctionCall: FunctionCall | undefined = undefined;
         let finalSources: GroundingChunk[] | undefined = undefined;
-        let isFunctionCallMessage = false;
 
         for await (const chunk of stream) {
             if (chunk.type === 'thought') {
@@ -99,8 +163,6 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
                 finalContent += chunk.content;
             } else if (chunk.type === 'functionCall') {
                 finalFunctionCall = chunk.functionCall;
-                finalContent = `Executing tool: \`${chunk.functionCall.name}\` with arguments: \`${JSON.stringify(chunk.functionCall.args)}\``;
-                isFunctionCallMessage = true;
             } else if (chunk.type === 'workflowUpdate' && chunk.plan) {
                 setWorkflowPlan(chunk.plan);
             } else if (chunk.type === 'metadata' && chunk.metadata.groundingMetadata) {
@@ -109,13 +171,13 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
             
             setMessages(prev =>
                 prev.map(msg =>
-                    msg.id === aiMessageId ? { ...msg, content: finalContent, thoughts: finalThoughts, functionCall: finalFunctionCall, isFunctionCallMessage, agentName: chunk.agentName || agent.name, sources: finalSources } : msg
+                    msg.id === aiMessageId ? { ...msg, content: finalContent, thoughts: finalThoughts, functionCall: finalFunctionCall, agentName: chunk.agentName || agent.name, sources: finalSources } : msg
                 )
             );
         }
 
         finalAiMessage = {
-            id: aiMessageId, author: 'ai', content: finalContent, thoughts: finalThoughts, agentName: agent.name, feedback: null, isFunctionCallMessage, sources: finalSources
+            id: aiMessageId, author: 'ai', content: finalContent, thoughts: finalThoughts, agentName: agent.name, feedback: null, functionCall: finalFunctionCall, sources: finalSources
         };
 
         historyService.addEntry(finalAiMessage);
@@ -125,7 +187,7 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
         const errorMessage: Message = {
             id: `err-${Date.now()}`,
             author: 'ai',
-            content: 'Sorry, I encountered an error. Please try again.',
+            content: error instanceof Error ? error.message : 'Sorry, I encountered an error. Please try again.',
             agentName: 'System',
             feedback: null
         };
@@ -134,7 +196,6 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
         setIsLoading(false);
         if (finalAiMessage) {
             shortTermMemoryService.addEntry(finalAiMessage);
-            // After the turn is complete, trigger memory consolidation
             supervisor.commitSessionToLongTermMemory(finalAgentName);
         }
         if (workflowPlan) {
@@ -199,13 +260,6 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
       setWorkflowPlan(null);
   };
 
-  const examplePrompts = [
-    "Create a sequence diagram for a user login flow using Mermaid.js.",
-    "Who won the 2024 Le Mans?",
-    "Research the top 3 frontend frameworks, then write a comparison table in markdown.",
-    "Navigate to the settings and change ChatAgent's temperature to 0.8"
-  ];
-
   const getSubheaderText = () => {
     let contextParts = [];
     if (repoUrl) {
@@ -232,16 +286,20 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
        >
         <Button onClick={handleNewChat} variant="outline" size="sm">New Chat</Button>
        </ViewHeader>
-        <div id="main-scroll-container" className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
             {workflowPlan && <WorkflowVisualizer plan={workflowPlan} />}
             {messages.map((msg, index) => (
-              <ChatMessage 
-                key={msg.id} 
-                message={msg} 
-                isLastMessage={index === messages.length - 1} 
-                isLoading={isLoading}
-                onFeedback={handleFeedback}
-              />
+                msg.functionCall ? (
+                    <FunctionCallMessage key={msg.id} agentName={msg.agentName} functionCall={msg.functionCall} />
+                ) : (
+                    <ChatMessage 
+                        key={msg.id} 
+                        message={msg} 
+                        isLastMessage={index === messages.length - 1} 
+                        isLoading={isLoading}
+                        onFeedback={handleFeedback}
+                    />
+                )
             ))}
             {isLoading && messages[messages.length - 1]?.author === 'user' && (
                 <div className="flex items-end gap-3 animate-in">
@@ -257,17 +315,22 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
             )}
              {messages.length === 0 && !isLoading && (
                 <div className="pt-10">
-                    <ExamplePrompts prompts={examplePrompts} onSelectPrompt={setInputValue} />
+                    <BentoPromptExamples onSelectPrompt={setInputValue} />
                 </div>
              )}
         </div>
-
-      <ChatInput 
-        inputValue={inputValue}
-        setInputValue={setInputValue}
-        isLoading={isLoading}
-        onSubmit={handleFormSubmit}
-      />
+      
+      <div className="p-4 border-t border-border/50">
+          <div className="pl-4 mb-2">
+            <RepoStatusIndicator />
+          </div>
+          <ChatInput 
+            inputValue={inputValue}
+            setInputValue={setInputValue}
+            isLoading={isLoading}
+            onSubmit={handleFormSubmit}
+          />
+      </div>
       
       <FeedbackModal 
         state={feedbackModal}

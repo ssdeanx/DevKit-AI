@@ -11,7 +11,7 @@ class Orchestrator {
             return { agent: availableAgents[0], reasoning: "Only one agent available." };
         }
 
-        const cacheKey = `orchestrator::v2::${prompt}`;
+        const cacheKey = `orchestrator::v4::${prompt}`;
         const cachedDecision = await cacheService.get<{ agent_name: string; reasoning: string }>(cacheKey);
         
         if (cachedDecision) {
@@ -24,9 +24,9 @@ class Orchestrator {
 
         const systemInstruction = `You are an expert request router performing meta-cognition. Your goal is to select the best agent to handle a user's request.
 
-Your process is two-step:
-1.  **Analyze Intent**: First, classify the user's core intent. Is it information retrieval, code generation, UI control, creative writing, file generation, or something else?
-2.  **Select Agent**: Based on the intent, select the most specialized agent from the list below.
+Your process is a strict two-step Chain-of-Thought:
+1.  **Analyze Intent**: First, classify the user's core intent. Is it information retrieval, code generation, UI control, creative writing, text refinement, planning a multi-step task, or something else?
+2.  **Select Agent**: Based on the identified intent, select the single most specialized agent from the list below.
 
 You must respond with a JSON object that strictly follows this schema: {"reasoning": "A brief explanation of your choice, starting with the identified intent.", "agent_name": "The exact name of the best agent"}.
 
@@ -34,7 +34,7 @@ You must respond with a JSON object that strictly follows this schema: {"reasoni
 ${availableAgents.map(a => `- ${a.name}: ${a.description}`).join('\n')}
 
 ---
-**Advanced Routing Examples:**
+**Few-Shot Routing Examples:**
 
 User request: "I need a professional README for my new TypeScript project."
 Your response: {"reasoning": "Intent: File Generation. The user explicitly asked for a README, so the ReadmeAgent is the perfect fit.", "agent_name": "ReadmeAgent"}

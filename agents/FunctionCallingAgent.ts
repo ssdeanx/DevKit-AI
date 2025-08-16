@@ -1,6 +1,6 @@
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Type, Part } from '@google/genai';
+import { Type, Part, Content } from '@google/genai';
 
 // CRITICAL FIX & BEST PRACTICE: To avoid a circular dependency runtime error 
 // (e.g., FunctionCallingAgent -> supervisor -> agentService -> FunctionCallingAgent),
@@ -64,9 +64,7 @@ export const FunctionCallingAgent: Agent = {
             temperature: 0,
         }
     },
-    execute: async function* (prompt: string | Part[]): AgentExecuteStream {
-        const contents = Array.isArray(prompt) ? prompt : [{ parts: [{ text: prompt }] }];
-        
+    execute: async function* (contents: Content[]): AgentExecuteStream {
         const stream = await geminiService.generateContentStream({
             contents: contents,
             ...this.config

@@ -2,7 +2,7 @@ import React, { createContext, useState, useEffect, ReactNode, useContext } from
 
 export type AgentThoughtsStyle = 'default' | 'terminal' | 'blueprint' | 'handwritten' | 'code-comment' | 'matrix' | 'scroll';
 export type WorkflowVisualType = 'simple' | 'detailed';
-export type Theme = 'light' | 'dark' | 'system';
+export type Theme = 'light' | 'dark';
 
 interface Settings {
   agentThoughtsStyle: AgentThoughtsStyle;
@@ -44,24 +44,24 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   useEffect(() => {
     const root = window.document.documentElement;
-    const isDark =
-      settings.theme === 'dark' ||
-      (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    
-    root.classList.toggle('dark', isDark);
+    root.classList.remove('light', 'dark');
+    root.classList.add(settings.theme);
     
     // For mermaid.js
     const mermaid = (window as any).mermaid;
     if (mermaid && mermaid.initialize) {
+        const isDark = settings.theme === 'dark';
+        const mermaidThemeVariables = {
+            background: isDark ? 'hsl(224 71.4% 4.1%)' : 'hsl(0 0% 100%)',
+            primaryColor: isDark ? 'hsl(215 27.9% 16.9%)' : 'hsl(220 14.3% 95.9%)',
+            primaryTextColor: isDark ? 'hsl(210 20% 98%)' : 'hsl(224 71.4% 4.1%)',
+            lineColor: isDark ? 'hsl(215 27.9% 16.9%)' : 'hsl(220 13% 91%)',
+            textColor: isDark ? 'hsl(210 20% 98%)' : 'hsl(224 71.4% 4.1%)',
+        };
         mermaid.initialize({
             startOnLoad: false,
             theme: isDark ? 'dark' : 'default',
-            themeVariables: {
-                background: isDark ? '#0f172a' : '#ffffff',
-                primaryColor: isDark ? '#1e293b' : '#f1f5f9',
-                primaryTextColor: isDark ? '#f8fafc' : '#020817',
-                lineColor: isDark ? '#334155' : '#e2e8f0',
-            }
+            themeVariables: mermaidThemeVariables,
         });
     }
 
@@ -72,12 +72,12 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   }, [settings]);
 
-  const setSettings = (newSettings: Settings) => {
-    setSettingsState(newSettings);
+  const setSettings = (newSettings: Partial<Settings>) => {
+    setSettingsState(prev => ({ ...prev, ...newSettings }));
   };
 
   return (
-    <SettingsContext.Provider value={{ settings, setSettings }}>
+    <SettingsContext.Provider value={{ settings, setSettings: setSettings as (settings: Settings) => void }}>
       {children}
     </SettingsContext.Provider>
   );

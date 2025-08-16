@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { geminiService } from '../services/gemini.service';
 import { DownloadIcon, ImageIcon, FileSvgIcon } from '../components/icons';
@@ -60,10 +61,10 @@ const IconGeneratorView: React.FC = () => {
   };
   
   const examplePrompts = [
-      "A minimalist, single-line vector icon of a brain.",
-      "A flat design icon for a weather app showing a sun behind a cloud.",
-      "A photorealistic 3D icon of a golden key.",
-      "A retro, pixel art icon of a floppy disk."
+      "Sleek, duotone vector icon of a database, for a tech startup logo, blue and silver.",
+      "Glassmorphism-style icon of a secure shield for a cybersecurity application.",
+      "A friendly, illustrated mascot of a robot holding a lightbulb, for an AI assistant app.",
+      "Abstract, geometric icon representing data flow and connectivity, using gradients."
   ];
 
   return (

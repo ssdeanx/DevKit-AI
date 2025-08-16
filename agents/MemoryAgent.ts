@@ -1,7 +1,8 @@
 
+
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Type, Part } from '@google/genai';
+import { Type, Part, Content } from '@google/genai';
 
 const systemInstruction = `### PERSONA
 You are a "Memory Architect" AI. Your role is to process and manage an AI assistant's memory. You are meticulous, analytical, and focused on identifying and storing only the most critical information. You operate based on commands.
@@ -88,8 +89,8 @@ export const MemoryAgent: Agent = {
             responseMimeType: "application/json",
         }
     },
-    execute: async function* (prompt: string | Part[]): AgentExecuteStream {
-        const textPrompt = Array.isArray(prompt) ? prompt.map(p => (p as any).text).join('\n') : prompt;
+    execute: async function* (contents: Content[]): AgentExecuteStream {
+        const textPrompt = contents[0].parts.map(p => 'text' in p ? p.text : '').join('\n');
         
         // Dynamically select the schema based on the command in the prompt
         const schema = textPrompt.includes('[COMMAND: CHECK_NOVELTY]') ? noveltyCheckSchema : summarizeSchema;

@@ -1,10 +1,12 @@
+
+
 import React from 'react';
 import { Message } from '../views/ChatView';
 import { useSettings } from '../context/SettingsContext';
 import { cn } from '../lib/utils';
 import { Card, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
-import { UserIcon, ToolIcon, SparklesIcon, BrainIcon, ThumbsUpIcon, ThumbsDownIcon } from './icons';
+import { UserIcon, SparklesIcon, BrainIcon, ThumbsUpIcon, ThumbsDownIcon } from './icons';
 import MarkdownRenderer from './MarkdownRenderer';
 import { GroundingChunk } from '@google/genai';
 
@@ -52,10 +54,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, isLastMes
       <div className={cn("flex items-end gap-3 animate-in w-full", isUser ? "justify-end" : "justify-start")}>
         {!isUser && (
           <div className="flex-shrink-0 w-8 h-8 rounded-full bg-secondary flex items-center justify-center border">
-             {message.isFunctionCallMessage ? <ToolIcon className="w-5 h-5 text-secondary-foreground" /> : <SparklesIcon className="w-5 h-5 text-primary" />}
+             <SparklesIcon className="w-5 h-5 text-primary" />
           </div>
         )}
-        <div className="flex flex-col gap-2 w-full items-start" style={{ alignItems: isUser ? 'flex-end' : 'flex-start' }}>
+        <div className="flex flex-col gap-2 w-full" style={{ alignItems: isUser ? 'flex-end' : 'flex-start' }}>
             {!isUser && message.thoughts && (
               <Card className={cn(
                   "bg-muted/50 animate-in w-full max-w-[80%]",
@@ -73,9 +75,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, isLastMes
                         settings.agentThoughtsStyle === 'default' && 'text-muted-foreground',
                         settings.agentThoughtsStyle === 'terminal' && 'text-[#C9D1D9]',
                         settings.agentThoughtsStyle === 'matrix' && 'text-green-400',
-                        settings.agentThoughtsStyle === 'handwritten' && 'text-[#4A4A4A]',
-                        settings.agentThoughtsStyle === 'code-comment' && 'thoughts-code-comment-content text-[#6A9955]',
-                        settings.agentThoughtsStyle === 'scroll' && 'text-[#5C4033]',
+                        settings.agentThoughtsStyle === 'handwritten' && 'text-gray-800 dark:text-gray-300',
+                        settings.agentThoughtsStyle === 'code-comment' && 'thoughts-code-comment-content text-gray-500 dark:text-gray-400',
+                        settings.agentThoughtsStyle === 'scroll' && 'text-gray-800 dark:text-gray-300',
                         needsCursor && message.thoughts && 'typing-cursor'
                     )} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                       {message.thoughts}
@@ -86,20 +88,19 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, isLastMes
             <div className={cn(
                 "group chat-bubble",
                 isUser ? "chat-bubble-user" : "chat-bubble-ai",
-                message.isFunctionCallMessage && "border border-primary/50 bg-primary/10"
             )}>
-                <div className={cn("text-base", message.isFunctionCallMessage && "text-primary/90 italic")}>
+                <div className="text-base">
                     <MarkdownRenderer content={message.content} />
                     {message.sources && message.sources.length > 0 && <SourceList sources={message.sources} />}
                 </div>
-                {!isUser && message.content && !message.isFunctionCallMessage && (
+                {!isUser && message.content && (
                     <div className="mt-2 pt-2 border-t border-border/20 flex justify-between items-center">
                         <span className="text-xs font-mono text-muted-foreground">{message.agentName || 'AI'}</span>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button variant="ghost" size="sm" onClick={() => onFeedback(message.id, 'positive')} disabled={message.feedback === 'positive'} className={cn("h-auto p-1", message.feedback === 'positive' ? 'text-green-500' : 'text-muted-foreground hover:text-foreground')} data-tooltip="Good response">
+                            <Button variant="ghost" size="sm" onClick={() => onFeedback(message.id, 'positive')} disabled={message.feedback === 'positive'} className={cn("h-auto p-1", message.feedback === 'positive' ? 'text-success-DEFAULT' : 'text-muted-foreground hover:text-success-DEFAULT')} data-tooltip="Good response">
                                 <ThumbsUpIcon className="w-4 h-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => onFeedback(message.id, 'negative')} disabled={message.feedback === 'negative'} className={cn("h-auto p-1", message.feedback === 'negative' ? 'text-red-500' : 'text-muted-foreground hover:text-foreground')} data-tooltip="Bad response">
+                            <Button variant="ghost" size="sm" onClick={() => onFeedback(message.id, 'negative')} disabled={message.feedback === 'negative'} className={cn("h-auto p-1", message.feedback === 'negative' ? 'text-destructive-DEFAULT' : 'text-muted-foreground hover:text-destructive-DEFAULT')} data-tooltip="Bad response">
                                 <ThumbsDownIcon className="w-4 h-4" />
                             </Button>
                         </div>

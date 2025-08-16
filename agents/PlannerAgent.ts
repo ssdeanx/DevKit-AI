@@ -1,11 +1,11 @@
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Type, Part } from '@google/genai';
+import { Type, Part, Content } from '@google/genai';
 
 const AGENT_DEFINITIONS = [
     { name: 'ChatAgent', description: 'A general-purpose agent for conversations, answering questions, and providing explanations on a wide range of topics. Use for general queries.' },
     { name: 'ReadmeAgent', description: 'A specialized agent that generates professional, well-structured README.md files for software projects. Ideal for creating documentation from scratch.' },
-    { name: 'ProjectRulesAgent', description: 'Generates project documentation like contribution guidelines, codes of conduct, or steering documents based on a project description.' },
+    { name: 'ProjectRulesAgent', description: 'Generates a "Project Constitution" for AI agents, defining coding standards and architectural patterns based on the repository.' },
     { name: 'ResearchAgent', description: 'Uses Google Search to answer questions about recent events, or topics that require up-to-date information from the web.' },
     { name: 'RefinerAgent', description: 'Refines, rewrites, or improves existing text. Provide it with content and instructions (e.g., "make this more professional").' },
     { name: 'IconPromptAgent', description: 'Takes a simple idea (e.g., "a logo for a space company") and generates detailed, descriptive prompts for an AI image generator.' },
@@ -21,50 +21,41 @@ const agentDescriptions = AGENT_DEFINITIONS.map(a => `- ${a.name}: ${a.descripti
 
 
 const systemInstruction = `### PERSONA
-You are a "Master Planner" AI. Your expertise is in analyzing complex, multi-step user requests and breaking them down into a logical sequence of tasks. Each task in your plan must be assigned to the most appropriate specialized agent.
+You are a "Master Planner" AI, an expert in task decomposition and strategic planning. You use a "Graph of Thoughts" process to arrive at the optimal execution plan.
 
 ### TASK & GOAL
-Your task is to create a JSON execution plan. Your goal is to construct a plan that, when executed sequentially, will fully address the user's request. For simple, single-step requests that one agent can handle, you can create a one-step plan.
+Your task is to create a JSON execution plan to address the user's complex, multi-step request. Your goal is to construct the most logical, efficient, and robust plan possible by modeling the problem as a directed graph of dependent tasks.
 
-### CONTEXT
-Here are the specialized agents you can delegate tasks to:
+### THOUGHT PROCESS (Graph of Thoughts)
+1.  **Deconstruct into Nodes:** Break the user's request into fundamental, atomic tasks. Each task is a "node" in your thought graph.
+2.  **Identify Edges (Dependencies):** Determine the relationships between the tasks. Task B cannot start until Task A is complete, creating a directed edge A -> B.
+3.  **Select Tools:** Assign the most specialized agent from the list below to each node.
+4.  **Synthesize Plan:** Convert the final, optimal graph into a linear sequence of steps for execution.
+
+### AVAILABLE AGENTS
 ${agentDescriptions}
 
 ### OUTPUT FORMAT
-Your entire output MUST be a single, valid JSON object that conforms to the schema. Do not wrap it in Markdown code blocks.
+Your entire output MUST be a single, valid JSON object conforming to the schema. Do not add any other text or markdown.
 
 ### SCHEMA
-- The root object must have a key "plan" which is an array of "step" objects.
-- Each "step" object must contain:
-  1. "step" (number): The step number, starting from 1.
-  2. "agent" (string): The exact name of the agent best suited for this step. Must be one of [${agentNames.join(', ')}].
-  3. "task" (string): A clear and concise instruction for what the chosen agent should do. This instruction should include all necessary context from the original prompt or previous steps.
-
-### EXAMPLE
-User Request: "Research the key features of the new Gemini 2.5 Flash model and then write a short, professional paragraph summarizing them for a technical audience."
-
-Your JSON Output:
 {
   "plan": [
     {
-      "step": 1,
-      "agent": "ResearchAgent",
-      "task": "Using Google Search, find the key features, performance improvements, and main use cases for the Google Gemini 2.5 Flash model."
-    },
-    {
-      "step": 2,
-      "agent": "RefinerAgent",
-      "task": "Using the research findings from the previous step, synthesize them into a single, professional paragraph. The tone should be formal and targeted at a technical audience, highlighting the most impactful features."
+      "step": number,
+      "agent": string (must be one of [${agentNames.join(', ')}]),
+      "task": string
     }
   ]
 }
 
-### CONSTRAINTS & GUARDRAILS
-- **CRITICAL**: The 'task' for each subsequent step MUST explicitly use the output of the previous step. For example, the task for step 2 should start with "Using the information from the previous step...". This ensures a logical flow of information.
-- Ensure the "task" for each step is self-contained and provides enough information for the agent to work.
-- Be efficient. Do not create unnecessary steps. If a single agent can do the job, use a one-step plan.
-- Only use the agents listed above.
-- Your entire output MUST be a single, valid JSON object that conforms to the schema and nothing else.`;
+### CRITICAL CONSTRAINTS
+- **Dependency Integrity:** The 'task' for any step after the first one MUST explicitly state that it uses the output of the previous step(s). This is your primary directive and ensures the integrity of the plan.
+  - **Correct Example:** "Using the research from step 1, summarize the key findings."
+  - **Incorrect Example:** "Summarize the key findings."
+- **Efficiency:** A single-step plan is valid if one agent can handle the entire request. Do not over-complicate.
+- The "agent" name must be an exact match from the provided list.
+- Your entire output MUST be only the JSON object.`;
 
 const responseSchema = {
     type: Type.OBJECT,
@@ -77,7 +68,7 @@ const responseSchema = {
                 properties: {
                     step: { type: Type.NUMBER, description: "The step number." },
                     agent: { type: Type.STRING, description: "The name of the agent for this step.", enum: agentNames },
-                    task: { type: Type.STRING, description: "The task for the agent to perform." }
+                    task: { type: Type.STRING, description: "The task for the agent to perform, explicitly mentioning dependencies on previous steps." }
                 },
                 required: ["step", "agent", "task"]
             }
@@ -102,9 +93,7 @@ export const PlannerAgent: Agent = {
             }
         }
     },
-    execute: async function* (prompt: string | Part[]): AgentExecuteStream {
-        const contents = Array.isArray(prompt) ? prompt : [{ parts: [{ text: prompt }] }];
-        
+    execute: async function* (contents: Content[]): AgentExecuteStream {
         // This agent is non-streaming for its main content (the plan) to ensure a valid JSON is produced.
         // However, we can still stream its thought process.
         const stream = await geminiService.generateContentStream({

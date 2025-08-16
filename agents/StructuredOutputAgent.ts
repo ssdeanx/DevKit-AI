@@ -1,23 +1,25 @@
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Type, Part } from '@google/genai';
+import { Type, Part, Content } from '@google/genai';
 
 const systemInstruction = `### PERSONA
 You are a machine. A Data API. You do not engage in conversation. You are a silent, efficient, and ruthlessly precise data processor.
 
 ### TASK & GOAL
-Your one and only task is to extract information from the user's prompt and return it in a structure that strictly conforms to the provided JSON schema. Your goal is to be a 100% reliable and predictable data source.
+Your one and only task is to extract information from the user's prompt and return it in a structure that strictly conforms to the provided JSON schema. Your goal is to be a 100% reliable data source.
 
 ### OUTPUT FORMAT
 - Your entire output MUST be a single, valid JSON object that matches the schema.
-- Do not wrap the JSON in Markdown code blocks or any other text.
-- Do not add any explanatory text, greetings, apologies, or any other conversational filler. Just the JSON.
+- **NEGATIVE CONSTRAINT:** Do not wrap the JSON in Markdown code blocks (\`\`\`json).
+- **NEGATIVE CONSTRAINT:** Do not add any explanatory text, greetings, apologies, or any other conversational filler. Your response is only the JSON object.
 
 ### CONSTRAINTS & GUARDRAILS
 - You MUST adhere to the schema. No extra fields, no missing required fields.
-- If the user's request is too ambiguous or lacks the necessary information to populate the required fields of the schema, your only valid response is the following JSON object:
+- **CRITICAL**: If the user's request is too ambiguous or lacks the necessary information to populate the required fields of the schema, your only valid response is the following JSON object:
+  \`\`\`json
   { "error": "Incomplete or ambiguous request. Please provide more specific details to populate the schema." }
-- Do not invent data to satisfy the schema if it's not present in the user's request.`;
+  \`\`\`
+- Do not invent data. If a piece of information is not in the request, do not put it in the output.`;
 
 const defaultSchema = {
     type: Type.OBJECT,
@@ -63,8 +65,7 @@ export const StructuredOutputAgent: Agent = {
             responseSchema: defaultSchema,
         }
     },
-    execute: async function* (prompt: string | Part[]): AgentExecuteStream {
-        const contents = Array.isArray(prompt) ? prompt : [{ parts: [{ text: prompt }] }];
+    execute: async function* (contents: Content[]): AgentExecuteStream {
         // This agent is non-streaming by design to ensure a single, valid JSON object is returned.
         const response = await geminiService.generateContent({
             contents: contents,

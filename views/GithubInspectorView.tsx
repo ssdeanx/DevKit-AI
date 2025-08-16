@@ -38,7 +38,6 @@ const StagedFiles: React.FC<{
     );
 };
 
-
 const GithubInspectorView: React.FC = () => {
     const [urlInput, setUrlInput] = useState('https://github.com/ssdeanx/DevKit-AI');
     const [apiKey, setApiKey] = useState(() => localStorage.getItem(GITHUB_API_KEY_STORAGE_KEY) || '');
@@ -85,10 +84,10 @@ const GithubInspectorView: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        if (fileTree) {
+        if (fileTree && !isAllExpanded) {
            expandAll();
         }
-    }, [fileTree, expandAll]);
+    }, [fileTree, isAllExpanded, expandAll]);
 
     const totalFiles = useMemo(() => {
         if (!fileTree) return 0;
@@ -163,6 +162,7 @@ const GithubInspectorView: React.FC = () => {
                             <Button onClick={handleFetch} disabled={isLoading} size="lg" className="w-full">
                                 {isLoading ? 'Loading Repository...' : 'Load Repository'}
                             </Button>
+                             {error && <p className="text-sm text-destructive mt-4 p-3 bg-destructive/10 rounded-md">{error}</p>}
                         </CardContent>
                     </Card>
                     <Card className="flex-1 flex flex-col overflow-hidden">
@@ -191,56 +191,56 @@ const GithubInspectorView: React.FC = () => {
                 </div>
                 
                 {/* Right Column */}
-                <Card className="flex-1 flex flex-col overflow-hidden">
-                    <CardHeader>
-                        <div className="flex justify-between items-center">
-                             <div>
-                                <CardTitle>Repository Structure</CardTitle>
-                                {repoUrl && <CardDescription className="font-mono text-primary/80">{repoUrl.split('/').slice(-2).join('/')}</CardDescription>}
-                             </div>
-                             {fileTree && (
-                                <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" onClick={isAllExpanded ? collapseAll : expandAll}>
-                                        {isAllExpanded ? "Collapse All" : "Expand All"}
-                                    </Button>
+                <div className="flex flex-col gap-6 overflow-hidden">
+                    <Card className="flex-1 flex flex-col overflow-hidden">
+                        <CardHeader>
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <CardTitle>Repository Structure</CardTitle>
+                                    {repoUrl && <CardDescription className="font-mono text-primary/80">{repoUrl.split('/').slice(-2).join('/')}</CardDescription>}
                                 </div>
-                             )}
-                        </div>
-                    </CardHeader>
-                    <CardContent className="flex-1 overflow-y-auto custom-scrollbar">
-                        {isLoading && (
-                            <div className="flex items-center justify-center h-full text-muted-foreground">
-                                <svg className="animate-spin h-8 w-8 text-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
+                                {fileTree && (
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" size="sm" onClick={isAllExpanded ? collapseAll : expandAll}>
+                                            {isAllExpanded ? "Collapse All" : "Expand All"}
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
-                        )}
-                        
-                        {!isLoading && fileTree && (
-                            <FileTree 
-                                tree={fileTree} 
-                                stagedFiles={stagedFiles} 
-                                onStageFile={handleStageFile} 
-                                onStageFolder={handleStageFolder} 
-                                onUnstageFolder={unstageFolder}
-                                expandedFolders={expandedFolders}
-                                onToggleFolder={toggleFolder}
-                            />
-                        )}
+                        </CardHeader>
+                        <CardContent className="flex-1 overflow-y-auto custom-scrollbar">
+                            {isLoading && (
+                                <div className="flex items-center justify-center h-full text-muted-foreground">
+                                    <svg className="animate-spin h-8 w-8 text-foreground" xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                </div>
+                            )}
+                            
+                            {!isLoading && fileTree && (
+                                <FileTree 
+                                    tree={fileTree} 
+                                    stagedFiles={stagedFiles} 
+                                    onStageFile={handleStageFile} 
+                                    onStageFolder={handleStageFolder} 
+                                    onUnstageFolder={unstageFolder}
+                                    expandedFolders={expandedFolders}
+                                    onToggleFolder={toggleFolder}
+                                />
+                            )}
 
-                         {error && <p className="text-sm text-destructive mt-4 p-3 bg-destructive/10 rounded-md">{error}</p>}
-                        
-                        {!isLoading && !fileTree && !error && (
-                            <div className="flex items-center justify-center h-full text-muted-foreground">
-                                <div className="text-center p-4 border-2 border-dashed rounded-lg">
-                                    <GithubIcon className="w-12 h-12 mx-auto mb-2" />
-                                    <p>Load a repository to see its file structure here.</p>
+                            {!isLoading && !fileTree && !error && (
+                                <div className="flex items-center justify-center h-full text-muted-foreground">
+                                    <div className="text-center p-4 border-2 border-dashed rounded-lg">
+                                        <GithubIcon className="w-12 h-12 mx-auto mb-2" />
+                                        <p>Load a repository to see its file structure here.</p>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
         </div>
     );

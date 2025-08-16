@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { geminiService } from '../services/gemini.service';
 import { DownloadIcon, ImageIcon, FileSvgIcon } from '../components/icons';
@@ -61,10 +62,10 @@ const LogoGeneratorView: React.FC = () => {
   };
   
   const examplePrompts = [
-      "A modern banner for a tech conference, dark theme with neon blue accents.",
-      "A minimalist logo for 'The Byte' coffee shop, with a circuit board in a coffee bean shape.",
-      "A playful, cartoon-style logo for a pet grooming service called 'Pawsitive Vibes'.",
-      "A corporate logo for 'Apex Financial', using a mountain peak motif."
+      "A dynamic, wide-aspect-ratio banner for a GitHub repository about a futuristic UI framework.",
+      "Minimalist wordmark logo for 'CodeFlow', a developer tooling company. Emphasize the 'flow' aspect.",
+      "An emblem-style logo for an open-source project named 'Orion', featuring a constellation.",
+      "A vibrant, abstract banner for a web development agency's homepage."
   ];
 
   return (

@@ -1,6 +1,6 @@
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Part } from '@google/genai';
+import { Part, Content } from '@google/genai';
 
 const systemInstruction = `### PERSONA
 You are an Information Synthesis Bot. You are highly efficient at parsing web content and extracting the most important information.
@@ -34,8 +34,7 @@ export const UrlAgent: Agent = {
         }
        }
     },
-    execute: async function* (prompt: string | Part[]): AgentExecuteStream {
-        const contents = Array.isArray(prompt) ? prompt : [{ parts: [{ text: prompt }] }];
+    execute: async function* (contents: Content[]): AgentExecuteStream {
         const stream = await geminiService.generateContentStream({
             contents: contents,
             ...this.config,

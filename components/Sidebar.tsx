@@ -1,4 +1,5 @@
 
+
 import React, { useContext } from 'react';
 import { ViewName } from '../App';
 import { ChatIcon, DocumentIcon, ImageIcon, GithubIcon, HistoryIcon, SettingsIcon, CodeGraphIcon, LogoIcon, SunIcon, MoonIcon, DatabaseIcon } from './icons';
@@ -55,21 +56,27 @@ const NavItem: React.FC<{
     config: NavItemConfig,
     activeView: ViewName,
     setActiveView: (view: ViewName) => void
-}> = React.memo(({ config, activeView, setActiveView }) => (
-    <button
-        onClick={() => setActiveView(config.id)}
-        disabled={config.disabled}
-        className={cn(
-            "flex items-center w-full text-left p-3 rounded-lg transition-colors text-sm font-medium",
-            "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-            activeView === config.id && "bg-primary text-primary-foreground shadow-sm",
-            config.disabled && "opacity-50 cursor-not-allowed"
-        )}
-    >
-        <span className="mr-3 w-5 h-5">{config.icon}</span>
-        {config.label}
-    </button>
-));
+}> = React.memo(({ config, activeView, setActiveView }) => {
+    const isActive = activeView === config.id;
+    return (
+        <button
+            onClick={() => setActiveView(config.id)}
+            disabled={config.disabled}
+            className={cn(
+                "flex items-center w-full text-left p-3 rounded-lg transition-all duration-200 text-sm font-medium relative",
+                "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                isActive && "text-foreground bg-accent",
+                config.disabled && "opacity-50 cursor-not-allowed"
+            )}
+        >
+            {isActive && (
+                 <span className="absolute left-0 top-1/2 -translate-y-1/2 h-3/5 w-1 bg-primary rounded-r-full"></span>
+            )}
+            <span className="relative ml-2 mr-3 w-5 h-5">{config.icon}</span>
+            <span className="relative">{config.label}</span>
+        </button>
+    );
+});
 
 
 const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {

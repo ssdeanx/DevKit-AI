@@ -1,9 +1,12 @@
+import { FunctionCall } from "@google/genai";
+
 export interface HistoryEntry {
     id: string;
     author: 'user' | 'ai';
     content: string;
     thoughts?: string;
     agentName?: string;
+    functionCall?: FunctionCall;
 }
 
 const HISTORY_STORAGE_KEY = 'devkit-ai-pro-history';

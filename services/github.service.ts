@@ -1,3 +1,4 @@
+
 export interface FileNode {
   name: string;
   path: string;
@@ -68,7 +69,8 @@ class GithubService {
     };
     
     sortNodes(fileTree);
-    return fileTree;
+    // Use structuredClone for a deep copy to prevent any potential downstream mutations
+    return structuredClone(fileTree);
   }
 
   async fetchRepoTree(url: string, apiKey?: string): Promise<FileNode[]> {

@@ -1,5 +1,5 @@
 
-import { GenerateContentParameters, FunctionCall, Part, GroundingMetadata } from '@google/genai';
+import { GenerateContentParameters, FunctionCall, Part, GroundingMetadata, Content } from '@google/genai';
 import { WorkflowStep } from '../App';
 
 // This now mirrors the full GenerateContentParameters, allowing each agent
@@ -26,5 +26,5 @@ export interface Agent {
     description: string;
     config: AgentConfig; // Each agent has its own full config now
     acceptsContext?: boolean;
-    execute: (prompt: string | Part[], fullHistory?: Part[]) => AgentExecuteStream;
+    execute: (contents: Content[], fullHistory?: Content[]) => AgentExecuteStream;
 }

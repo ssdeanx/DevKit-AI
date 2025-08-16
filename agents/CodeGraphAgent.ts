@@ -1,6 +1,6 @@
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Type, Part } from '@google/genai';
+import { Type, Part, Content } from '@google/genai';
 
 const systemInstruction = `### PERSONA
 You are a "Software Architect" AI. You excel at analyzing source code repositories and identifying their core components and relationships.
@@ -93,8 +93,7 @@ export const CodeGraphAgent: Agent = {
             responseSchema: responseSchema,
         }
     },
-    execute: async function* (prompt: string | Part[]): AgentExecuteStream {
-        const contents = Array.isArray(prompt) ? prompt : [{ parts: [{ text: prompt }] }];
+    execute: async function* (contents: Content[]): AgentExecuteStream {
         // This agent is non-streaming to ensure a single, valid JSON object.
         const response = await geminiService.generateContent({
             contents: contents,

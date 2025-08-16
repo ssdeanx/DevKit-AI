@@ -109,6 +109,7 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({
 
     // File node rendering
     const isStaged = stagedFiles.some(f => f.path === node.path);
+
     return (
         <div key={node.path}
             className="group file-tree-node"
@@ -123,7 +124,7 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({
                     size="icon"
                     variant="ghost"
                     className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                    onClick={() => onStageFile(node.path)}
+                    onClick={(e) => { e.stopPropagation(); onStageFile(node.path); }}
                     data-tooltip="Stage file for context"
                 >
                     <PlusCircleIcon className="w-4 h-4 text-muted-foreground" />

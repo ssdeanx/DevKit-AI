@@ -1,4 +1,6 @@
-import { useState, useCallback } from 'react';
+
+import { useState, useCallback, useContext } from 'react';
+import { useToast } from '../context/ToastContext';
 
 interface AsyncOperation<T, P extends any[]> {
   data: T | null;
@@ -12,6 +14,8 @@ interface AsyncOperation<T, P extends any[]> {
 interface AsyncOperationOptions<T> {
     onSuccess?: (data: T) => void;
     onError?: (error: Error) => void;
+    successMessage?: string;
+    errorMessage?: string;
 }
 
 export function useAsyncOperation<T, P extends any[]>(
@@ -21,6 +25,7 @@ export function useAsyncOperation<T, P extends any[]>(
   const [data, setData] = useState<T | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const execute = useCallback(async (...params: P) => {
     setIsLoading(true);
@@ -31,19 +36,22 @@ export function useAsyncOperation<T, P extends any[]>(
       if (options.onSuccess) {
         options.onSuccess(result);
       }
+      if (options.successMessage) {
+        toast({ title: 'Success', description: options.successMessage });
+      }
       return result;
     } catch (e: any) {
-      const errorMessage = e.message || 'An unexpected error occurred.';
+      const errorMessage = e.message || options.errorMessage || 'An unexpected error occurred.';
       setError(errorMessage);
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
        if (options.onError) {
         options.onError(e);
       }
-      // Return undefined or throw to let the caller know it failed
       return undefined;
     } finally {
       setIsLoading(false);
     }
-  }, [asyncFunction, options]);
+  }, [asyncFunction, options, toast]);
 
   const reset = useCallback(() => {
     setData(null);
