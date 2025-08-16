@@ -54,13 +54,13 @@ Your JSON Output:
     {
       "step": 2,
       "agent": "RefinerAgent",
-      "task": "Take the research findings about Gemini 2.5 Flash and synthesize them into a single, professional paragraph. The tone should be formal and targeted at a technical audience, highlighting the most impactful features."
+      "task": "Using the research findings from the previous step, synthesize them into a single, professional paragraph. The tone should be formal and targeted at a technical audience, highlighting the most impactful features."
     }
   ]
 }
 
 ### CONSTRAINTS & GUARDRAILS
-- ALWAYS think step-by-step to construct the plan.
+- **CRITICAL**: The 'task' for each subsequent step MUST explicitly use the output of the previous step. For example, the task for step 2 should start with "Using the information from the previous step...". This ensures a logical flow of information.
 - Ensure the "task" for each step is self-contained and provides enough information for the agent to work.
 - Be efficient. Do not create unnecessary steps. If a single agent can do the job, use a one-step plan.
 - Only use the agents listed above.

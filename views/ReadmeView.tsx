@@ -11,11 +11,12 @@ import MarkdownRenderer from '../components/MarkdownRenderer';
 import { cacheService } from '../services/cache.service';
 import { useSettings } from '../context/SettingsContext';
 import ViewHeader from '../components/ViewHeader';
+import { useAsyncOperation } from '../hooks/useAsyncOperation';
+import EmptyState from '../components/EmptyState';
 
 const ReadmeView: React.FC = () => {
   const [description, setDescription] = useState('');
   const [generatedReadme, setGeneratedReadme] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const { fileTree, repoUrl, stagedFiles } = useContext(GithubContext);
   const { settings } = useSettings();
 
@@ -27,47 +28,43 @@ const ReadmeView: React.FC = () => {
     }
   }, [repoUrl, fileTree, description]);
 
-  const handleGenerate = async () => {
+  const generateReadmeOperation = useAsyncOperation(async () => {
     if (!description.trim()) return;
-    
+
     const cacheKey = `readme::${repoUrl}::${description}`;
     if (settings.isCacheEnabled) {
-      const hasCache = await cacheService.has(cacheKey);
-      if (hasCache) {
+      const cachedReadme = await cacheService.get<string>(cacheKey);
+      if (cachedReadme) {
         console.log(`ReadmeView: Loading README from cache for key: ${cacheKey}`);
-        const cachedReadme = await cacheService.get<string>(cacheKey);
-        if (cachedReadme) {
-          setGeneratedReadme(cachedReadme);
-          return;
-        }
+        setGeneratedReadme(cachedReadme);
+        return cachedReadme;
       }
     }
 
-    setIsLoading(true);
     setGeneratedReadme('');
-    try {
-        const prompt = `Generate a README for a project with the following description and context: ${description}`;
-        console.log(`ReadmeView: Generating README with prompt: "${prompt}" (no cache)`);
-        const { stream } = await supervisor.handleRequest(prompt, { fileTree, stagedFiles }, { setActiveView: () => {} }, ReadmeAgent.id);
-        
-        let content = '';
-        for await (const chunk of stream) {
-            if (chunk.type === 'content') {
-                content += chunk.content;
-                setGeneratedReadme(content);
-            }
+    const prompt = `Generate a README for a project with the following description and context: ${description}`;
+    console.log(`ReadmeView: Generating README with prompt: "${prompt}" (no cache)`);
+    const { stream } = await supervisor.handleRequest(prompt, { fileTree, stagedFiles }, { setActiveView: () => {} }, ReadmeAgent.id);
+    
+    let content = '';
+    for await (const chunk of stream) {
+        if (chunk.type === 'content') {
+            content += chunk.content;
+            setGeneratedReadme(content); // Stream to UI
         }
-        if (settings.isCacheEnabled) {
-          console.log(`ReadmeView: Saving README to cache with key: ${cacheKey}`);
-          await cacheService.set(cacheKey, content);
-        }
-    } catch (error) {
-        console.error("ReadmeView: Error generating README:", error);
-        setGeneratedReadme("Sorry, an error occurred while generating the README.");
-    } finally {
-        setIsLoading(false);
     }
-  };
+
+    if (settings.isCacheEnabled) {
+      console.log(`ReadmeView: Saving README to cache with key: ${cacheKey}`);
+      await cacheService.set(cacheKey, content);
+    }
+    return content;
+  }, {
+      onError: (e) => {
+        console.error("ReadmeView: Error generating README:", e);
+        setGeneratedReadme("Sorry, an error occurred while generating the README.");
+      }
+  });
   
   const handleCopy = () => {
     navigator.clipboard.writeText(generatedReadme);
@@ -81,7 +78,7 @@ const ReadmeView: React.FC = () => {
   ];
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
+    <div className="flex flex-col h-full">
       <ViewHeader
         icon={<DocumentIcon className="w-6 h-6" />}
         title="README Pro Generator"
@@ -94,20 +91,23 @@ const ReadmeView: React.FC = () => {
                 <CardTitle>Project Details</CardTitle>
                 <CardDescription>Provide a description and context for your project.</CardDescription>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
-                <ExamplePrompts prompts={examplePrompts} onSelectPrompt={setDescription} />
-                <Textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Describe your project, its purpose, main technologies used, etc. If a GitHub repo is loaded, its structure will be included automatically."
-                    className="flex-1 resize-none font-mono text-sm"
-                />
+            <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
+                <div className="overflow-y-auto custom-scrollbar pr-2">
+                    <ExamplePrompts prompts={examplePrompts} onSelectPrompt={setDescription} />
+                    <Textarea
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="Describe your project, its purpose, main technologies used, etc. If a GitHub repo is loaded, its structure will be included automatically."
+                        className="h-48 resize-none font-mono text-sm"
+                    />
+                </div>
                 <Button
-                    onClick={handleGenerate}
-                    disabled={isLoading}
+                    onClick={generateReadmeOperation.execute}
+                    disabled={generateReadmeOperation.isLoading}
                     size="lg"
+                    className="mt-auto"
                 >
-                    {isLoading ? 'Generating...' : "Generate README"}
+                    {generateReadmeOperation.isLoading ? 'Generating...' : "Generate README"}
                 </Button>
             </CardContent>
         </Card>
@@ -123,13 +123,11 @@ const ReadmeView: React.FC = () => {
             {generatedReadme ? (
               <MarkdownRenderer content={generatedReadme} />
             ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                <div className="text-center p-6 border-2 border-dashed rounded-lg">
-                  <DocumentIcon className="w-12 h-12 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-foreground">Your README awaits</h3>
-                  <p>Describe your project and click "Generate" to see the result here.</p>
-                </div>
-              </div>
+              <EmptyState
+                icon={<DocumentIcon className="w-12 h-12" />}
+                title="Your README awaits"
+                description='Describe your project and click "Generate" to see the result here.'
+              />
             )}
           </CardContent>
         </Card>

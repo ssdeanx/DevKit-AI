@@ -38,7 +38,7 @@ const HistoryView: React.FC = () => {
     };
 
     return (
-        <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
+        <div className="flex flex-col h-full bg-background overflow-hidden">
             <ViewHeader
                 icon={<HistoryIcon className="w-6 h-6" />}
                 title="Generation History"
@@ -51,7 +51,7 @@ const HistoryView: React.FC = () => {
                 )}
             </ViewHeader>
 
-            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+            <div className="flex-1 p-6">
                 {history.length === 0 ? (
                     <div className="text-center text-muted-foreground h-full flex items-center justify-center">
                         <p>No history yet. Start a conversation in the Chat view!</p>

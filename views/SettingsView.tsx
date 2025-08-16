@@ -1,3 +1,5 @@
+
+
 import React, { useState, useCallback } from 'react';
 import { agentService } from '../services/agent.service';
 import { Agent, AgentConfig } from '../agents/types';
@@ -6,8 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Label } from '../components/ui/Label';
 import { Slider } from '../components/ui/Slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/Tabs';
-import { useSettings, AgentThoughtsStyle, WorkflowVisualType } from '../context/SettingsContext';
-import WorkflowVisual from '../components/WorkflowVisual';
+import { useSettings, AgentThoughtsStyle } from '../context/SettingsContext';
 import { Textarea } from '../components/ui/Textarea';
 import { Switch } from '../components/ui/Switch'; 
 import { cn } from '../lib/utils';
@@ -15,6 +16,8 @@ import { cacheService } from '../services/cache.service';
 import { Button } from '../components/ui/Button';
 import ViewHeader from '../components/ViewHeader';
 import { SettingsIcon } from '../components/icons';
+import { agentMemoryService } from '../services/agent-memory.service';
+import { useToast } from '../context/ToastContext';
 
 
 const SettingsSlider: React.FC<{
@@ -24,11 +27,15 @@ const SettingsSlider: React.FC<{
   max: number;
   step: number;
   onChange: (value: number) => void;
-}> = ({ label, value, min, max, step, onChange }) => (
-    <div className="space-y-2">
+  disabled?: boolean;
+  displayValue?: string;
+}> = ({ label, value, min, max, step, onChange, disabled, displayValue }) => (
+    <div className={cn("space-y-2 transition-opacity", disabled && "opacity-50")}>
         <div className="flex justify-between items-center">
             <Label>{label}</Label>
-            <span className="text-sm font-mono px-2 py-0.5 bg-muted rounded">{value.toFixed(step < 1 ? 2 : 0)}</span>
+            <span className="text-sm font-mono px-2 py-0.5 bg-muted rounded">
+                {displayValue ?? value.toFixed(step < 1 ? 2 : 0)}
+            </span>
         </div>
         <Slider
             value={[value]}
@@ -36,6 +43,7 @@ const SettingsSlider: React.FC<{
             min={min}
             max={max}
             step={step}
+            disabled={disabled}
         />
     </div>
 );
@@ -48,6 +56,14 @@ const AgentSettings: React.FC<{ agent: Agent, onConfigChange: (agentId: string, 
 
     const handleThinkingConfigChange = (thinkingParam: keyof ThinkingConfig, value: any) => {
         const newThinkingConfig = { ...agent.config.config?.thinkingConfig, [thinkingParam]: value };
+        onConfigChange(agent.id, { config: { thinkingConfig: newThinkingConfig } as any });
+    };
+
+    const handleDynamicThinkingToggle = (checked: boolean) => {
+        const newThinkingConfig = {
+            ...agent.config.config?.thinkingConfig,
+            thinkingBudget: checked ? -1 : 8192, // Use -1 for dynamic, or a default value
+        };
         onConfigChange(agent.id, { config: { thinkingConfig: newThinkingConfig } as any });
     };
 
@@ -91,6 +107,9 @@ const AgentSettings: React.FC<{ agent: Agent, onConfigChange: (agentId: string, 
         }
     };
 
+    const thinkingBudget = agent.config.config?.thinkingConfig?.thinkingBudget ?? 8192;
+    const isDynamicThinking = thinkingBudget === -1;
+
     return (
         <Card>
             <CardHeader>
@@ -131,12 +150,29 @@ const AgentSettings: React.FC<{ agent: Agent, onConfigChange: (agentId: string, 
                     <p className="text-sm text-muted-foreground mb-4">
                         `thinkingBudget` controls tokens for internal reasoning (higher can improve quality for complex tasks), while `maxOutputTokens` limits the final response length.
                     </p>
-                    <SettingsSlider
-                        label="Thinking Budget"
-                        min={0} max={24576} step={128}
-                        value={agent.config.config?.thinkingConfig?.thinkingBudget ?? 8192}
-                        onChange={(v) => handleThinkingConfigChange('thinkingBudget', v)}
-                    />
+                    
+                     <div className="flex items-center space-x-2">
+                        <Switch
+                            id={`dynamic-thinking-${agent.id}`}
+                            checked={isDynamicThinking}
+                            onCheckedChange={handleDynamicThinkingToggle}
+                        />
+                        <div className="flex flex-col">
+                            <Label htmlFor={`dynamic-thinking-${agent.id}`} className="cursor-pointer">Enable Dynamic Thinking</Label>
+                             <p className="text-xs text-muted-foreground">Sets budget to -1 to automatically choose necessary tokens.</p>
+                        </div>
+                    </div>
+
+                    <div className="mt-4">
+                        <SettingsSlider
+                            label="Thinking Budget"
+                            min={0} max={24576} step={128}
+                            value={isDynamicThinking ? 0 : thinkingBudget}
+                            onChange={(v) => handleThinkingConfigChange('thinkingBudget', v)}
+                            disabled={isDynamicThinking}
+                            displayValue={isDynamicThinking ? 'Auto' : undefined}
+                        />
+                    </div>
                      <div className="flex items-center space-x-2 pt-4">
                         <Switch
                             id={`thinking-thoughts-${agent.id}`}
@@ -204,6 +240,7 @@ const AgentSettings: React.FC<{ agent: Agent, onConfigChange: (agentId: string, 
 const SettingsView: React.FC = () => {
   const [agents, setAgents] = useState<Agent[]>(() => agentService.getAgents());
   const { settings, setSettings } = useSettings();
+  const { toast } = useToast();
 
   const handleConfigChange = useCallback((agentId: string, newConfig: Partial<AgentConfig>) => {
     agentService.updateAgentConfig(agentId, newConfig);
@@ -220,20 +257,26 @@ const SettingsView: React.FC = () => {
     { id: 'scroll', label: 'Scroll' },
   ];
 
-  const workflowStyles: { id: WorkflowVisualType; label: string; }[] = [
-      { id: 'simple', label: 'Simple Flow' },
-      { id: 'detailed', label: 'Detailed Flow' }
-  ];
+  const handleClearCache = async () => {
+      await cacheService.clear();
+      toast({ title: "Success", description: "Generation cache has been cleared." });
+  };
+
+  const handleClearMemories = async () => {
+      await agentMemoryService.clearAllMemories(true); // Pass true to bypass confirm
+      toast({ title: "Success", description: "All agent memories have been cleared.", variant: 'destructive' });
+  };
+
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full">
       <ViewHeader
         icon={<SettingsIcon className="w-6 h-6" />}
         title="Settings"
         description="Fine-tune general settings and parameters for each AI agent."
       />
 
-      <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 p-6">
         <Tabs defaultValue="general">
           <TabsList className="flex-wrap h-auto justify-start">
             <TabsTrigger value="general">General</TabsTrigger>
@@ -287,46 +330,52 @@ const SettingsView: React.FC = () => {
                             ))}
                         </div>
                     </div>
-                    <div className="space-y-4">
-                        <Label>Workflow Visualizer</Label>
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {workflowStyles.map(style => (
-                                <div
-                                    key={style.id}
-                                    onClick={() => setSettings({ ...settings, workflowVisual: style.id })}
-                                    className={cn(
-                                        "p-2 rounded-lg border-2 cursor-pointer transition-all card-interactive",
-                                        settings.workflowVisual === style.id ? 'border-primary shadow-lg scale-105' : 'border-border hover:border-primary/50'
-                                    )}
-                                >
-                                    <div className="p-4 border rounded-lg bg-secondary/50 h-48 flex items-center justify-center">
-                                        <WorkflowVisual style={style.id} />
-                                    </div>
-                                    <p className="text-center text-sm font-medium mt-2">{style.label}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    
                     <div className="border-t pt-6">
-                        <h3 className="text-lg font-medium text-foreground mb-2">Generation Cache</h3>
+                        <h3 className="text-lg font-medium text-foreground mb-2">Data Management</h3>
                         <p className="text-sm text-muted-foreground mb-4">
-                            Cache expensive generation results (like code graphs or documentation) in your browser's local storage to reduce token usage and speed up repeated requests.
+                            Control data stored in your browser's local storage. Caching improves performance, while agent memories help the AI learn from feedback.
                         </p>
-                        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                            <div className="flex items-center space-x-2">
+                        <div className="space-y-4">
+                             <div className="flex items-center justify-between">
+                                <Label htmlFor="cache-toggle" className="flex flex-col space-y-1">
+                                    <span>Enable Generation Cache</span>
+                                    <span className="font-normal text-xs text-muted-foreground">Cache results from README, Code Graph, etc.</span>
+                                </Label>
                                 <Switch
                                     id="cache-toggle"
                                     checked={settings.isCacheEnabled}
                                     onCheckedChange={(checked) => setSettings({ ...settings, isCacheEnabled: checked })}
                                 />
-                                <Label htmlFor="cache-toggle">Enable Cache</Label>
                             </div>
-                            <Button
-                                variant="outline"
-                                onClick={async () => await cacheService.clear()}
-                            >
-                                Clear Cache Now
-                            </Button>
+                            <div className="flex items-center justify-between">
+                                 <Label className="flex flex-col space-y-1">
+                                    <span>Clear Generation Cache</span>
+                                    <span className="font-normal text-xs text-muted-foreground">Removes all cached generation results.</span>
+                                </Label>
+                                <Button
+                                    variant="outline"
+                                    onClick={handleClearCache}
+                                >
+                                    Clear Now
+                                </Button>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                 <Label className="flex flex-col space-y-1">
+                                    <span>Clear All Agent Memories</span>
+                                    <span className="font-normal text-xs text-muted-foreground">Resets all learned feedback for every agent.</span>
+                                </Label>
+                                <Button
+                                    variant="destructive"
+                                    onClick={() => {
+                                        if (window.confirm("Are you sure you want to clear all learned memories for every agent? This action cannot be undone.")) {
+                                            handleClearMemories();
+                                        }
+                                    }}
+                                >
+                                    Clear Memories
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </CardContent>

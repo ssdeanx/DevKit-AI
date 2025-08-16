@@ -19,7 +19,7 @@ Your task is to answer the user's query by leveraging Google Search. Your goal i
 - At the very end of your response, provide a "Sources" section with a numbered list corresponding to your citations.
 
 ### CONSTRAINTS & GUARDRAILS
-- If the search results are inconclusive or contradictory, state that clearly. Do not try to invent an answer.
+- **CRITICAL**: If the search results are inconclusive, contradictory, or do not contain the answer, you MUST state that clearly. Do not try to invent an answer. It is better to say "I could not find a definitive answer" than to provide incorrect information.
 - Prioritize information from reputable sources.
 - The entire response should be neutral and factual in tone.`;
 

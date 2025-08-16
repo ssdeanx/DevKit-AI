@@ -1,15 +1,15 @@
+
 import { orchestrator } from './orchestrator';
 import { Agent, AgentExecuteStream, WorkflowPlan } from '../agents/types';
 import { agentService } from './agent.service';
 import { FileNode, StagedFile } from './github.service';
 import { ViewName, WorkflowStep } from '../App';
-import { FunctionCall, Part } from '@google/genai';
+import { FunctionCall, Part, Type } from '@google/genai';
 import { PlannerAgent } from '../agents/PlannerAgent';
-import { knowledgeService } from './knowledge.service';
+import { agentMemoryService } from './agent-memory.service';
 import { cleanText } from '../lib/text';
-import { ResearchAgent } from '../agents/ResearchAgent';
-
-const feedbackLog: any[] = [];
+import { shortTermMemoryService } from './short-term-memory.service';
+import { MemoryAgent } from '../agents/MemoryAgent';
 
 interface FullGitContext {
     fileTree: FileNode[] | null;
@@ -78,34 +78,49 @@ class Supervisor {
     }
 
     let contextParts: Part[] = [];
+    
+    // 1. Add Short-Term Memory (current conversation)
+    const recentHistory = shortTermMemoryService.getHistory(5); // Get last 5 turns
+    if (recentHistory.length > 0) {
+        let stmContext = `### Short-Term Memory (Current Conversation Context)
+This is the recent history of our current conversation. Use it to understand the immediate context.
+`;
+        stmContext += recentHistory.map(entry => `[${entry.author === 'user' ? 'USER' : 'AI'}]: ${cleanText(entry.content)}`).join('\n');
+        contextParts.push({ text: stmContext });
+    }
 
-    // 1. Add retry context if it exists
+    // 2. Add Long-Term Memory (facts & feedback)
+    const relevantMemories = await agentMemoryService.searchMemories(selectedAgent.id, effectivePrompt);
+    if (relevantMemories.length > 0) {
+        let ltmContext = `### Long-Term Memory (Personal Knowledge & Feedback)
+This is your personal memory of key facts and user feedback from past sessions. Use it to improve your performance and avoid past mistakes.
+`;
+        ltmContext += relevantMemories.map(mem => `- [${mem.type.toUpperCase()}] ${mem.content}`).join('\n');
+        contextParts.push({ text: ltmContext });
+    }
+
+    // 3. Add retry context if it exists
     if (retryContext) {
-        contextParts.push({ text: `A previous attempt to answer this request failed. Please use the following user feedback to improve your response:\n\n[USER FEEDBACK]:\n"${retryContext.feedback}"\n\nBased on that feedback, please try again to answer the original request.` });
+        contextParts.push({ text: `### CRITICAL: Previous Attempt Failed
+You are re-attempting a task based on direct user feedback.
+[USER FEEDBACK]: "${retryContext.feedback}"
+Analyze this feedback carefully to improve your response and avoid the previous error.` });
     }
 
-    // 2. Add knowledge base context
-    const relevantFacts = await knowledgeService.searchFacts(effectivePrompt);
-    if (relevantFacts.length > 0) {
-        let factContext = "For additional context, here is some potentially relevant information from your knowledge base. Use it to inform your answer:\n\n";
-        factContext += relevantFacts.map(fact => `- ${fact.content}`).join('\n');
-        contextParts.push({ text: factContext });
-    }
-
-    // 3. Add GitHub context
+    // 4. Add GitHub context
     if (selectedAgent.acceptsContext && (githubContext.fileTree || githubContext.stagedFiles.length > 0)) {
         console.log(`Supervisor: Adding GitHub context for agent ${selectedAgent.name}.`);
-        let gitContextString = "The user has a GitHub repository loaded. Use this information to inform your response.\n\n";
+        let gitContextString = "### GitHub Repository Context\nThe user has loaded a GitHub repository. This is your primary source of truth for the project.\n\n";
 
         if (githubContext.fileTree && githubContext.fileTree.length > 0) {
-            gitContextString += `### Project File Structure:\n\`\`\`\n${formatFileTree(githubContext.fileTree)}\n\`\`\`\n\n`;
+            gitContextString += `#### Project File Structure:\n\`\`\`\n${formatFileTree(githubContext.fileTree)}\n\`\`\`\n\n`;
         }
         
         if (githubContext.stagedFiles.length > 0) {
-            gitContextString += "### Content of Staged Files:\n";
+            gitContextString += "#### Content of Staged Files:\n";
             for (const file of githubContext.stagedFiles) {
                 const cleanedContent = cleanText(file.content);
-                gitContextString += `--- FILE: ${file.path} ---\n\`\`\`\n${cleanedContent}\n\`\`\`\n\n`;
+                gitContextString += `--- START OF FILE: ${file.path} ---\n\`\`\`\n${cleanedContent}\n\`\`\`\n--- END OF FILE: ${file.path} ---\n\n`;
             }
         }
         contextParts.push({ text: gitContextString });
@@ -119,7 +134,7 @@ class Supervisor {
 
     if (selectedAgent.id === PlannerAgent.id) {
         console.log(`Supervisor: Executing multi-step plan with ${selectedAgent.name}.`);
-        const stream = this.executePlan(selectedAgent, finalPromptParts, callbacks, contextParts);
+        const stream = this.executePlan(selectedAgent, finalPromptParts, callbacks, contextParts, effectivePrompt);
         return { agent: selectedAgent, stream };
     } else {
         console.log(`Supervisor: Executing single agent ${selectedAgent.name} with function calling.`);
@@ -132,7 +147,8 @@ class Supervisor {
     planner: Agent,
     prompt: string | Part[],
     callbacks: { setActiveView: (view: ViewName) => void; },
-    baseContextParts: Part[]
+    baseContextParts: Part[],
+    originalUserPrompt: string,
   ): AgentExecuteStream {
     // Step 1: Get the plan from the PlannerAgent
     console.log("Supervisor (Plan): Requesting plan from PlannerAgent.");
@@ -165,8 +181,10 @@ class Supervisor {
     
     // Step 2: Execute the plan
     for (const step of parsedPlan.plan) {
+        let stepSucceeded = true;
+        let stepOutput = '';
+        
         console.log(`Supervisor (Plan): Executing step ${step.step}: Agent: ${step.agent}, Task: "${step.task}"`);
-        // Update UI with the current plan state
         const currentStepIndex = workflowSteps.findIndex(ws => ws.step === step.step);
         workflowSteps[currentStepIndex].status = 'in-progress';
         yield { type: 'workflowUpdate', plan: [...workflowSteps] };
@@ -174,39 +192,55 @@ class Supervisor {
         const agentToExecute = allAgents.find(a => a.name === step.agent);
         if (!agentToExecute) {
             console.error(`Supervisor (Plan): Agent ${step.agent} not found in plan.`);
-            executionContext += `\nError: Agent ${step.agent} not found.`;
-            continue;
-        }
+            stepOutput = `\nError: Agent ${step.agent} not found. Skipping step.`;
+            stepSucceeded = false;
+        } else {
+            const subAgentPromptText = `You are one step in a multi-agent plan to address a user's request.
+Your work is crucial for the success of the overall plan.
 
-        // Construct the prompt for the sub-agent, including original context
-        const subAgentPromptText = `
-        You are one step in a multi-agent plan.
-        Previous context from other agents:
-        ---
-        ${executionContext || 'No previous context.'}
-        ---
-        Your specific task is: "${step.task}"
-        Please perform this task and provide the output.
-        `;
-        
-        const subAgentPromptParts: Part[] = [...baseContextParts, { text: subAgentPromptText }];
+### Original User Request
+To ensure you don't lose sight of the overall goal, here is the user's original request:
+"${originalUserPrompt}"
 
+### Your Specific Task
+Your current task is: "${step.task}"
 
-        const agentStream = this.executeAgentWithFunctionCalling(agentToExecute, subAgentPromptParts, callbacks);
-        let stepOutput = '';
+${executionContext ? `### Context from Previous Steps
+The output from the previous step is provided below. Use it to inform your work.
+---
+${executionContext}
+---` : 'This is the first step, so there is no previous context.'}
 
-        for await (const chunk of agentStream) {
-            // Pass through chunks from sub-agents, but mark them with the correct agent name
-            yield { ...chunk, agentName: agentToExecute.name };
-            if (chunk.type === 'content') {
-                stepOutput += chunk.content;
+Please perform your task and provide the output.
+`;
+            
+            const subAgentPromptParts: Part[] = [...baseContextParts, { text: subAgentPromptText }];
+
+            try {
+                const agentStream = this.executeAgentWithFunctionCalling(agentToExecute, subAgentPromptParts, callbacks);
+                for await (const chunk of agentStream) {
+                    yield { ...chunk, agentName: agentToExecute.name };
+                    if (chunk.type === 'content') {
+                        stepOutput += chunk.content;
+                    }
+                }
+            } catch (error: any) {
+                console.error(`Supervisor (Plan): Error executing agent ${agentToExecute.name} for step ${step.step}. Error: ${error.message}`);
+                stepOutput = `Error during execution of ${agentToExecute.name}: ${error.message}`;
+                stepSucceeded = false;
             }
         }
+        
+        // Update context for the next step
+        if (stepSucceeded) {
+            executionContext = `\n\n--- Output from Step ${step.step} (${agentToExecute?.name}) ---\n${stepOutput}`;
+        } else {
+            executionContext = `\n\n--- FAILED: Output from Step ${step.step} (${agentToExecute?.name}) ---\n${stepOutput}`;
+        }
 
-        executionContext += `\n\n--- Output from ${agentToExecute.name} ---\n${stepOutput}`;
-        workflowSteps[currentStepIndex].status = 'completed';
+        workflowSteps[currentStepIndex].status = 'completed'; // Mark as completed even if failed, to move to next step.
         workflowSteps[currentStepIndex].output = stepOutput;
-         console.log(`Supervisor (Plan): Step ${step.step} completed.`);
+        console.log(`Supervisor (Plan): Step ${step.step} finished.`);
     }
 
      yield { type: 'workflowUpdate', plan: [...workflowSteps] };
@@ -250,13 +284,10 @@ class Supervisor {
                 console.error(`Supervisor (FC): Tool ${toolName} not found.`);
             }
             
-            // Add the function call and its result to history for the next turn.
-            // The agent's `execute` method is expected to handle the full history.
             history.push({ functionCall });
             history.push({ functionResponse: { name: toolName, response: result } });
 
         } else {
-            // No more function calls, we are done.
              console.log(`Supervisor (FC): No more function calls for ${agent.name}. Ending loop.`);
             break;
         }
@@ -267,25 +298,120 @@ class Supervisor {
     }
   }
 
-  recordFeedback(messageId: string, rating: 'positive' | 'negative', reason: string | null, agentName?: string) {
-    const feedback = {
-        timestamp: new Date().toISOString(),
-        messageId,
-        agentName,
-        feedback: rating,
-        reason,
-    };
-    feedbackLog.push(feedback);
-    console.log(`Feedback recorded:`, feedback);
+  async recordFeedback(messageId: string, rating: 'positive' | 'negative', reason: string | null, agentName?: string) {
+    if (!agentName) {
+        console.warn("Supervisor: Cannot record feedback without an agent name.");
+        return;
+    }
+    const agent = agentService.getAgents().find(a => a.name === agentName);
+    if (!agent) {
+        console.error(`Supervisor: Agent ${agentName} not found for recording feedback.`);
+        return;
+    }
+
+    if (rating === 'negative' && reason) {
+        const feedbackMemory = `My previous response was rated negatively.
+User Feedback: "${reason}".
+I must learn from this. I will analyze the feedback and ensure my next response is improved and does not repeat the same mistake.`;
+        
+        await agentMemoryService.addMemory(agent.id, {
+            content: feedbackMemory,
+            type: 'feedback',
+        });
+        console.log(`Supervisor: Negative feedback recorded as a memory for ${agent.name}.`);
+    } else {
+        console.log(`Supervisor: Positive feedback recorded for ${agent.name}.`);
+    }
+  }
+  
+  private async _isMemoryNovel(agentId: string, potentialMemory: string): Promise<boolean> {
+      const relevantMemories = await agentMemoryService.searchMemories(agentId, potentialMemory, 5);
+      if (relevantMemories.length === 0) {
+          return true; // No existing memories, so it's definitely novel.
+      }
+
+      const noveltyCheckPrompt = `[COMMAND: CHECK_NOVELTY]
+### Task
+Analyze the "New Potential Memory" and compare it against the "Existing Memories". Determine if the new memory adds significant, new information or if it is mostly redundant or a minor variation of what is already known.
+
+### New Potential Memory
+"${potentialMemory}"
+
+### Existing Memories
+${relevantMemories.map(m => `- ${m.content}`).join('\n')}
+
+### Your Response
+You MUST respond with a single, valid JSON object with the key "isNovel" (boolean) and an optional "reason" (string).
+`;
+      try {
+          const memoryAgent = agentService.getAgents().find(a => a.id === MemoryAgent.id)!;
+          const stream = memoryAgent.execute(noveltyCheckPrompt);
+          let responseJson = '';
+          for await (const chunk of stream) {
+              if (chunk.type === 'content') responseJson += chunk.content;
+          }
+          const result = JSON.parse(responseJson.replace(/```json|```/g, '').trim());
+          console.log(`Supervisor (Novelty Check): AI determined memory is ${result.isNovel ? 'NOVEL' : 'NOT NOVEL'}. Reason: ${result.reason}`);
+          return result.isNovel;
+      } catch (error) {
+          console.error("Supervisor (Novelty Check): Failed to determine memory novelty via AI. Defaulting to true.", error);
+          return true; // Fail safe: if the check fails, assume it's novel to avoid losing potentially good memories.
+      }
   }
 
-  async saveKnowledgeIfApplicable(agentName: string, content: string): Promise<void> {
-    if (agentName === ResearchAgent.name && content) {
-        console.log(`Supervisor: Saving knowledge from ${agentName}.`);
-        await knowledgeService.addFact({
-            content,
-            source: agentName,
-        });
+  async commitSessionToLongTermMemory(agentId: string) {
+    const recentHistory = shortTermMemoryService.getHistory(10);
+    if (recentHistory.length < 2) return; 
+
+    const agent = agentService.getAgents().find(a => a.id === agentId);
+    if (!agent) return;
+
+    const canLearn = ['ChatAgent', 'ResearchAgent', 'CodeExecutionAgent', 'RefinerAgent'].includes(agent.name);
+    if (!canLearn) return;
+
+    console.log(`Supervisor: Starting LTM commit process for ${agent.name}.`);
+    
+    const conversation = recentHistory.map(entry => `[${entry.author}]: ${entry.content}`).join('\n\n');
+    const summarizationPrompt = `[COMMAND: SUMMARIZE]
+### Task
+Analyze the following conversation history. Extract a single, concise, and important fact, user preference, or key takeaway that I (the AI) should remember for future interactions. The memory should be a statement from my perspective.
+
+### Conversation History
+---
+${conversation}
+---
+
+### Your Response
+You MUST respond with a single, valid JSON object with the key "summary" (string). If no significant new information was learned, return a summary that is null.`;
+    
+    try {
+        const memoryAgent = agentService.getAgents().find(a => a.id === MemoryAgent.id)!;
+        const stream = memoryAgent.execute(summarizationPrompt);
+        let summaryJson = '';
+        for await (const chunk of stream) {
+            if (chunk.type === 'content') summaryJson += chunk.content;
+        }
+        
+        const result = JSON.parse(summaryJson.replace(/```json|```/g, '').trim());
+        const summary = result.summary;
+
+        if (summary && summary.length > 20) {
+            console.log(`Supervisor (LTM): Generated potential memory: "${summary}"`);
+            const isNovel = await this._isMemoryNovel(agent.id, summary);
+            if(isNovel) {
+                await agentMemoryService.addMemory(agent.id, {
+                    content: cleanText(summary),
+                    type: 'self-generated',
+                });
+                console.log(`Supervisor (LTM): Committed new NOVEL memory for ${agent.name}.`);
+            } else {
+                 console.log(`Supervisor (LTM): Discarded redundant memory for ${agent.name}.`);
+            }
+        } else {
+            console.log(`Supervisor (LTM): Commit for ${agent.name} skipped (summary too short or empty).`);
+        }
+    } catch (error) {
+        console.error("Supervisor (LTM): Failed to commit session to LTM.", error);
     }
   }
 }

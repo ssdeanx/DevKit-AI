@@ -13,6 +13,7 @@ import { ProjectRulesAgent } from "./ProjectRulesAgent";
 import { FunctionCallingAgent } from "./FunctionCallingAgent";
 import { PlannerAgent } from "./PlannerAgent";
 import { CodeGraphAgent } from "./CodeGraphAgent";
+import { MemoryAgent } from "./MemoryAgent";
 
 export const initialAgents: Agent[] = [
     ChatAgent,
@@ -27,6 +28,7 @@ export const initialAgents: Agent[] = [
     UrlAgent,
     FunctionCallingAgent,
     CodeGraphAgent,
+    MemoryAgent,
 ];
 
 export const defaultAgent = ChatAgent;

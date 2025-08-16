@@ -73,7 +73,7 @@ const ProjectRulesView: React.FC = () => {
   ];
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
+    <div className="flex flex-col h-full bg-background overflow-hidden">
       <ViewHeader
         icon={<DocumentIcon className="w-6 h-6" />}
         title="Project Rules Generator"
@@ -86,15 +86,17 @@ const ProjectRulesView: React.FC = () => {
                 <CardTitle>Document Request</CardTitle>
                 <CardDescription>What kind of document do you need?</CardDescription>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
-                 <ExamplePrompts prompts={examplePrompts} onSelectPrompt={setRequest} />
-                <Textarea
-                    value={request}
-                    onChange={(e) => setRequest(e.target.value)}
-                    placeholder="e.g., 'Create a code of conduct based on the Contributor Covenant.'"
-                    className="flex-1 resize-none"
-                />
-                <Button onClick={handleGenerate} disabled={isLoading} size="lg">
+            <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
+                <div className="overflow-y-auto custom-scrollbar pr-2">
+                    <ExamplePrompts prompts={examplePrompts} onSelectPrompt={setRequest} />
+                    <Textarea
+                        value={request}
+                        onChange={(e) => setRequest(e.target.value)}
+                        placeholder="e.g., 'Create a code of conduct based on the Contributor Covenant.'"
+                        className="h-48 resize-none"
+                    />
+                </div>
+                <Button onClick={handleGenerate} disabled={isLoading} size="lg" className="mt-auto">
                     {isLoading ? 'Generating...' : "Generate Document"}
                 </Button>
             </CardContent>

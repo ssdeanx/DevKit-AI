@@ -36,6 +36,7 @@ We have developed an innovative solution designed to enhance user productivity a
 ### CONSTRAINTS & GUARDRAILS
 - Adhere strictly to the user's refinement instruction.
 - The critique should be helpful and educational, not just critical.
+- **IMPORTANT**: If the original text is already very good and meets the user's criteria, state that in the critique and explain what makes it effective. Do not make changes for the sake of making changes.
 - The improved version should be a direct replacement for the original text.`;
 
 export const RefinerAgent: Agent = {

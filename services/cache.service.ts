@@ -69,10 +69,9 @@ class CacheService {
         try {
             await clear();
             console.log("Cache cleared.");
-            alert("Generation cache has been cleared.");
         } catch (error) {
             console.error("CacheService: Failed to clear cache:", error);
-            alert("Failed to clear cache.");
+            throw error;
         }
     }
 }

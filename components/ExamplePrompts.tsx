@@ -8,7 +8,7 @@ interface ExamplePromptsProps {
     title?: string;
 }
 
-const ExamplePrompts: React.FC<ExamplePromptsProps> = ({ prompts, onSelectPrompt, title = "Or try an example:" }) => (
+const ExamplePrompts: React.FC<ExamplePromptsProps> = React.memo(({ prompts, onSelectPrompt, title = "Or try an example:" }) => (
     <div className="mb-4 animate-in">
         <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
             <LightbulbIcon className="w-4 h-4"/>
@@ -26,6 +26,6 @@ const ExamplePrompts: React.FC<ExamplePromptsProps> = ({ prompts, onSelectPrompt
             ))}
         </div>
     </div>
-);
+));
 
 export default ExamplePrompts;

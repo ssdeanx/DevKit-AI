@@ -110,7 +110,15 @@
                 "fill-width": {
                     from: { width: "0%" },
                     to: { width: "100%" }
-                }
+                },
+                "toast-hide": {
+                    "0%": { opacity: "1" },
+                    "100%": { opacity: "0" },
+                },
+                "toast-slide-in-right": {
+                    "0%": { transform: `translateX(calc(100% + 1rem))` },
+                    "100%": { transform: "translateX(0)" },
+                },
             },
             animation: {
               "accordion-down": "accordion-down 0.2s ease-out",
@@ -124,7 +132,9 @@
               "pulse-dot": "pulse-dot 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
               "fade-in-scale": "fade-in-scale 0.2s ease-out forwards",
               "glow": "glow 2s ease-in-out infinite",
-              "fill-width": "fill-width 0.5s ease-in-out forwards"
+              "fill-width": "fill-width 0.5s ease-in-out forwards",
+              "toast-hide": "toast-hide 100ms ease-in forwards",
+              "toast-slide-in-right": "toast-slide-in-right 150ms cubic-bezier(0.16, 1, 0.3, 1)",
             },
           },
         },
@@ -283,51 +293,29 @@
             animation-duration: 0.3s;
             animation-timing-function: ease-out;
         }
-        .workflow-arrow {
-            transition: stroke 0.3s ease-in-out;
-            animation-duration: 2s;
-            animation-iteration-count: infinite;
-            animation-timing-function: linear;
+        
+        /* Workflow Visualizer */
+        .workflow-node {
+            @apply relative flex items-center p-3 rounded-lg border-2 bg-secondary transition-all duration-300;
         }
-        @keyframes pulse-arrow {
-            0%, 100% { stroke-dasharray: 1000; stroke-dashoffset: 2000; }
-            50% { stroke-dasharray: 1000; stroke-dashoffset: 0; }
+        .workflow-node.pending {
+            @apply border-border opacity-60;
         }
-        .workflow-arrow-animated {
-            animation-name: pulse-arrow;
+        .workflow-node.in-progress {
+            @apply border-primary animate-pulse shadow-lg;
+        }
+        .workflow-node.completed {
+            @apply border-green-500 bg-green-500/10;
+        }
+        .workflow-connector {
+            @apply absolute left-1/2 -translate-x-1/2 w-0.5 bg-border;
+            height: 2rem; /* space between nodes */
+            top: -2rem;
+        }
+        .workflow-connector.completed {
+            @apply bg-green-500;
         }
 
-        /* Workflow Timeline */
-        .workflow-timeline { @apply relative pl-4; }
-        .workflow-timeline::before {
-            content: '';
-            @apply absolute top-2 left-[11px] w-0.5 h-full bg-border rounded-full;
-        }
-        .timeline-item { @apply relative pl-8 pb-8; }
-        .timeline-item:last-child { @apply pb-0; }
-        .timeline-item:last-child::before { @apply h-0; }
-        .timeline-icon {
-            @apply absolute top-0 -left-[2px] w-6 h-6 rounded-full bg-background flex items-center justify-center border-2;
-        }
-        .timeline-icon.glowing {
-            @apply animate-glow;
-        }
-        .timeline-connector {
-            @apply absolute left-[11px] w-0.5 bg-green-500 origin-top;
-            animation: fill-height 0.5s ease-in-out forwards;
-        }
-        .timeline-output {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-in-out;
-        }
-        .timeline-output.expanded {
-            max-height: 500px; /* Or a sufficiently large value */
-        }
-        @keyframes fill-height {
-            from { height: 0%; }
-            to { height: 100%; }
-        }
 
         .glass-effect {
           @apply bg-card/60 backdrop-blur-xl border border-border/20 shadow-xl shadow-black/10;
@@ -372,27 +360,30 @@
         .mermaid svg {
             max-width: 100%;
             height: auto;
+            color: hsl(var(--foreground));
         }
-        .react-flow__node, .react-flow__edge {
-          transition: opacity 0.2s ease-out;
+        .mermaid .cluster rect, .mermaid .cluster path {
+            fill: hsl(var(--secondary)) !important;
+            stroke: hsl(var(--border)) !important;
         }
-        .react-flow__node.dimmed, .react-flow__edge.dimmed {
-          opacity: 0.2;
+         .mermaid .node rect, .mermaid .node polygon, .mermaid .node ellipse {
+            fill: hsl(var(--card)) !important;
+            stroke: hsl(var(--border)) !important;
         }
-        /* Themed React Flow Controls */
-        .react-flow__controls {
-            @apply shadow-lg border border-border/50;
+        .mermaid .node-label {
+            color: hsl(var(--card-foreground)) !important;
         }
-        .react-flow__controls button {
-            @apply bg-card/80 backdrop-blur-sm text-foreground hover:bg-accent;
-            border-bottom: 1px solid hsl(var(--border) / 0.5);
+        .mermaid .edgeLabel {
+            background-color: hsl(var(--background)) !important;
+            color: hsl(var(--foreground)) !important;
         }
-        .react-flow__controls button:last-child {
-            border-bottom: none;
+        .mermaid .edge-path {
+            stroke: hsl(var(--muted-foreground)) !important;
         }
-        .react-flow__minimap {
-             @apply bg-card/80 backdrop-blur-sm border border-border/50 rounded-lg shadow-lg;
+        .mermaid .arrowhead {
+            fill: hsl(var(--muted-foreground)) !important;
         }
+
         /* Custom Chat Bubbles */
         .chat-bubble {
             @apply p-4 rounded-2xl max-w-[80%];
@@ -468,9 +459,38 @@
             opacity: 1;
             transform: translateX(-50%) translateY(-4px);
         }
+        /* File Tree */
+        .file-tree-node {
+            @apply flex items-center py-1.5 px-2 rounded-md cursor-pointer transition-colors;
+        }
+        .file-tree-node:hover {
+            @apply bg-accent/50;
+        }
+        .chevron-icon {
+            @apply transition-transform duration-200;
+        }
+        .chevron-open {
+            transform: rotate(90deg);
+        }
+        /* React Flow */
+        .react-flow .react-flow__node, .react-flow .react-flow__edge {
+          transition: opacity 0.2s ease-in-out;
+        }
+        .react-flow .dimmed {
+          opacity: 0.2;
+        }
+        /* Toast */
+        .toast-viewport {
+            @apply fixed top-0 z-50 flex flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:flex-col;
+        }
+        .toast-root {
+            @apply w-full max-w-sm p-4 rounded-lg shadow-lg glass-effect;
+        }
+        .toast-root[data-variant="destructive"] {
+             @apply border-destructive/50;
+        }
       }
     </style>
-    <link rel="stylesheet" href="https://esm.sh/reactflow@11.11.4/dist/style.css">
     <script type="importmap">
 {
   "imports": {
@@ -486,10 +506,11 @@
     "lodash": "https://esm.sh/lodash@^4.17.21",
     "react-markdown": "https://esm.sh/react-markdown@9.0.1",
     "remark-gfm": "https://esm.sh/remark-gfm@4.0.0",
-    "reactflow": "https://esm.sh/reactflow@11.11.4",
     "idb-keyval": "https://esm.sh/idb-keyval@6.2.1",
-    "elkjs": "https://esm.sh/elkjs@0.9.3/lib/elk.bundled.js",
-    "uuid": "https://esm.sh/uuid@^11.1.0"
+    "uuid": "https://esm.sh/uuid@^11.1.0",
+    "framer-motion": "https://esm.sh/framer-motion@^11.3.19",
+    "reactflow": "https://esm.sh/reactflow@^11.11.4",
+    "elkjs": "https://esm.sh/elkjs@^0.10.0"
   }
 }
 </script>

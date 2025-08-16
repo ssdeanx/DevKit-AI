@@ -23,112 +23,111 @@ interface NavItemConfig {
 const ThemeSwitcher: React.FC = () => {
     const { settings, setSettings } = useSettings();
 
-    const toggleTheme = () => {
-        const newTheme = settings.theme === 'dark' ? 'light' : 'dark';
-        setSettings({ ...settings, theme: newTheme });
+    const setTheme = (theme: 'light' | 'dark') => {
+        setSettings({ ...settings, theme });
     };
 
     return (
-        <div className="p-2">
-            <div className="flex items-center justify-center p-1 rounded-full bg-secondary">
-                <Button 
-                    variant={settings.theme === 'light' ? 'default' : 'ghost'} 
-                    size="sm" 
-                    onClick={() => setSettings({...settings, theme: 'light'})}
-                    className="flex-1"
-                >
-                    <SunIcon className="w-4 h-4" />
-                </Button>
-                <Button 
-                    variant={settings.theme === 'dark' ? 'default' : 'ghost'} 
-                    size="sm" 
-                    onClick={() => setSettings({...settings, theme: 'dark'})}
-                    className="flex-1"
-                >
-                    <MoonIcon className="w-4 h-4" />
-                </Button>
-            </div>
+        <div className="grid grid-cols-2 gap-1 rounded-lg bg-secondary p-1">
+            <Button
+                variant={settings.theme === 'light' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setTheme('light')}
+                className="flex items-center gap-2"
+            >
+                <SunIcon className="w-4 h-4"/>
+                Light
+            </Button>
+            <Button
+                variant={settings.theme === 'dark' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setTheme('dark')}
+                className="flex items-center gap-2"
+            >
+                <MoonIcon className="w-4 h-4"/>
+                Dark
+            </Button>
         </div>
     );
 };
 
 const NavItem: React.FC<{
-  icon: React.ReactNode;
-  label: string;
-  viewName: ViewName;
-  isActive: boolean;
-  onClick: () => void;
-  disabled?: boolean;
-}> = ({ icon, label, isActive, onClick, disabled }) => (
-  <Button
-    variant="ghost"
-    onClick={onClick}
-    className={cn(
-        "w-full justify-start text-base py-6 relative",
-        isActive && "bg-primary/10 text-primary font-semibold"
-    )}
-    aria-current={isActive ? 'page' : undefined}
-    disabled={disabled}
-  >
-    {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r-full"></div>}
-    {icon}
-    <span className="ml-3">{label}</span>
-  </Button>
-);
+    config: NavItemConfig,
+    activeView: ViewName,
+    setActiveView: (view: ViewName) => void
+}> = React.memo(({ config, activeView, setActiveView }) => (
+    <button
+        onClick={() => setActiveView(config.id)}
+        disabled={config.disabled}
+        className={cn(
+            "flex items-center w-full text-left p-3 rounded-lg transition-colors text-sm font-medium",
+            "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+            activeView === config.id && "bg-primary text-primary-foreground shadow-sm",
+            config.disabled && "opacity-50 cursor-not-allowed"
+        )}
+    >
+        <span className="mr-3 w-5 h-5">{config.icon}</span>
+        {config.label}
+    </button>
+));
+
 
 const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
-  const { repoUrl } = useContext(GithubContext);
+    const { repoUrl } = useContext(GithubContext);
 
-  const navItems: NavItemConfig[] = [
-    { id: 'chat', label: 'Chat', icon: <ChatIcon className="h-5 w-5" />, group: 'AI Tools' },
-    { id: 'project-rules', label: 'Project Rules', icon: <DocumentIcon className="h-5 w-5" />, group: 'AI Tools' },
-    { id: 'readme-generator', label: 'README Pro', icon: <DocumentIcon className="h-5 w-5" />, group: 'AI Tools' },
-    { id: 'icon-generator', label: 'Icon Generator', icon: <ImageIcon className="h-5 w-5" />, group: 'AI Tools' },
-    { id: 'logo-generator', label: 'Logo/Banner Gen', icon: <ImageIcon className="h-5 w-5" />, group: 'AI Tools' },
-    { id: 'github-inspector', label: 'GitHub Inspector', icon: <GithubIcon className="h-5 w-5" />, group: 'Project' },
-    { id: 'code-graph', label: 'Code Graph', icon: <CodeGraphIcon className="h-5 w-5" />, group: 'Project', disabled: !repoUrl },
-    { id: 'knowledge-base', label: 'Knowledge Base', icon: <DatabaseIcon className="h-5 w-5" />, group: 'Project' },
-    { id: 'history', label: 'History', icon: <HistoryIcon className="h-5 w-5" />, group: 'Project' },
-    { id: 'settings', label: 'Settings', icon: <SettingsIcon className="h-5 w-5" />, group: 'Project' },
-  ];
-
-  const groupedNavItems = navItems.reduce<Record<string, NavItemConfig[]>>((acc, item) => {
-    if (!acc[item.group]) {
-      acc[item.group] = [];
-    }
-    acc[item.group].push(item);
-    return acc;
-  }, {});
-
-  return (
-    <aside className="w-72 flex-shrink-0 p-4 flex flex-col glass-effect z-20 rounded-lg shadow-2xl shadow-black/10">
-      <div className="mb-6 flex items-center justify-center gap-2 p-4">
-         <LogoIcon className="h-8 w-8 text-primary" />
-        <h1 className="text-2xl font-bold text-center animate-text-gradient bg-gradient-to-r from-primary via-muted-foreground to-primary">DevKit AI Pro</h1>
-      </div>
-      <nav className="flex-1 space-y-6">
-        {Object.entries(groupedNavItems).map(([groupName, items]) => (
-          <div key={groupName}>
-            <h2 className="px-2 mb-2 text-sm font-semibold tracking-wider text-muted-foreground uppercase">{groupName}</h2>
-            <div className="space-y-1">
-              {items.map((item) => (
-                <NavItem
-                  key={item.id}
-                  icon={item.icon}
-                  label={item.label}
-                  viewName={item.id}
-                  isActive={activeView === item.id}
-                  onClick={() => setActiveView(item.id)}
-                  disabled={item.disabled}
-                />
-              ))}
+    const navItems: NavItemConfig[] = [
+        // AI Tools
+        { id: 'chat', label: 'Chat', icon: <ChatIcon />, group: 'AI TOOLS' },
+        { id: 'project-rules', label: 'Project Rules', icon: <DocumentIcon />, group: 'AI TOOLS' },
+        { id: 'readme-generator', label: 'README Pro', icon: <DocumentIcon />, group: 'AI TOOLS', disabled: !repoUrl },
+        { id: 'icon-generator', label: 'Icon Generator', icon: <ImageIcon />, group: 'AI TOOLS' },
+        { id: 'logo-generator', label: 'Logo/Banner Gen', icon: <ImageIcon />, group: 'AI TOOLS' },
+        
+        // Project
+        { id: 'github-inspector', label: 'GitHub Inspector', icon: <GithubIcon />, group: 'PROJECT' },
+        { id: 'code-graph', label: 'Code Graph', icon: <CodeGraphIcon />, group: 'PROJECT', disabled: !repoUrl },
+        { id: 'agent-memory', label: 'Agent Memory', icon: <DatabaseIcon />, group: 'PROJECT' },
+        
+        // App
+        { id: 'history', label: 'History', icon: <HistoryIcon />, group: 'APP' },
+        { id: 'settings', label: 'Settings', icon: <SettingsIcon />, group: 'APP' },
+    ];
+    
+    const groupedItems = navItems.reduce((acc, item) => {
+        if (!acc[item.group]) {
+            acc[item.group] = [];
+        }
+        acc[item.group].push(item);
+        return acc;
+    }, {} as Record<string, NavItemConfig[]>);
+    
+    return (
+        <aside className="w-64 flex-shrink-0 flex flex-col glass-effect rounded-lg p-4">
+            <div className="flex items-center gap-3 p-3 mb-4">
+                <div className="p-2 bg-primary rounded-lg">
+                    <LogoIcon className="w-6 h-6 text-primary-foreground" />
+                </div>
+                <h1 className="text-xl font-bold">DevKit AI Pro</h1>
             </div>
-          </div>
-        ))}
-      </nav>
-      <ThemeSwitcher />
-    </aside>
-  );
+
+            <nav className="flex-1 space-y-4 overflow-y-auto custom-scrollbar pr-2">
+                {Object.entries(groupedItems).map(([group, items]) => (
+                    <div key={group}>
+                        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">{group}</h2>
+                        <div className="space-y-1">
+                            {items.map(item => (
+                                <NavItem key={item.id} config={item} activeView={activeView} setActiveView={setActiveView} />
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </nav>
+            
+            <div className="mt-auto pt-4">
+                <ThemeSwitcher />
+            </div>
+        </aside>
+    );
 };
 
 export default Sidebar;

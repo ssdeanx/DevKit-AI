@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { convertPngToSvg } from '../lib/image';
 import ExamplePrompts from '../components/ExamplePrompts';
 import ViewHeader from '../components/ViewHeader';
+import { useAsyncOperation } from '../hooks/useAsyncOperation';
+import EmptyState from '../components/EmptyState';
 
 type AspectRatio = "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
 
@@ -17,34 +19,19 @@ const IconGeneratorView: React.FC = () => {
   const [prompt, setPrompt] = useState('');
   const [numberOfImages, setNumberOfImages] = useState(1);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("1:1");
-  const [generatedImages, setGeneratedImages] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleGenerate = async () => {
+  
+  const generateImagesOperation = useAsyncOperation(async () => {
     if (!prompt.trim()) {
-      setError("Please enter a prompt.");
-      return;
+      throw new Error("Please enter a prompt.");
     }
     console.log(`IconGeneratorView: Generating ${numberOfImages} image(s) with aspect ratio ${aspectRatio} for prompt: "${prompt}"`);
-    setIsLoading(true);
-    setError(null);
-    setGeneratedImages([]);
+    const images = await geminiService.generateImages(prompt, {
+      numberOfImages,
+      aspectRatio,
+    });
+    return images.map(img => img.image.imageBytes);
+  });
 
-    try {
-      const images = await geminiService.generateImages(prompt, {
-        numberOfImages,
-        aspectRatio,
-      });
-      setGeneratedImages(images.map(img => img.image.imageBytes));
-    } catch (e) {
-      console.error("IconGeneratorView: Image generation failed:", e);
-      setError("Failed to generate images. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
   const handleDownloadPng = (base64Image: string, index: number) => {
     const link = document.createElement('a');
     link.href = `data:image/png;base64,${base64Image}`;
@@ -68,7 +55,7 @@ const IconGeneratorView: React.FC = () => {
         URL.revokeObjectURL(url);
     } catch (err) {
         console.error("Failed to convert to SVG:", err);
-        setError("Failed to convert image to SVG. This feature works best for simple, high-contrast images.");
+        generateImagesOperation.setError("Failed to convert image to SVG. This feature works best for simple, high-contrast images.");
     }
   };
   
@@ -80,14 +67,14 @@ const IconGeneratorView: React.FC = () => {
   ];
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full">
       <ViewHeader
         icon={<ImageIcon className="w-6 h-6" />}
         title="Icon Generator"
         description="Create stunning icons and images with the Imagen 3 model."
       />
 
-      <div className="flex-1 flex flex-col p-6 gap-6 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 flex flex-col p-6 gap-6">
         <Card>
             <CardHeader>
                 <CardTitle>Generation Settings</CardTitle>
@@ -128,12 +115,12 @@ const IconGeneratorView: React.FC = () => {
                         </Select>
                     </div>
                     <Button
-                        onClick={handleGenerate}
-                        disabled={isLoading}
+                        onClick={generateImagesOperation.execute}
+                        disabled={generateImagesOperation.isLoading}
                         className="self-end"
                         size="lg"
                     >
-                      {isLoading ? 'Generating...' : "Generate"}
+                      {generateImagesOperation.isLoading ? 'Generating...' : "Generate"}
                     </Button>
                 </div>
                 <p className="text-xs text-muted-foreground pt-2">Note: SVG conversion is performed in-browser and works best for high-contrast images. All generated images include a SynthID watermark.</p>
@@ -141,11 +128,11 @@ const IconGeneratorView: React.FC = () => {
         </Card>
 
         <div className="flex-1">
-          {error && <div className="text-destructive bg-destructive/10 p-4 rounded-lg text-center">{error}</div>}
+          {generateImagesOperation.error && <div className="text-destructive bg-destructive/10 p-4 rounded-lg text-center">{generateImagesOperation.error}</div>}
           
-          {generatedImages.length > 0 && (
+          {generateImagesOperation.data && generateImagesOperation.data.length > 0 && (
              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {generatedImages.map((img, index) => (
+              {generateImagesOperation.data.map((img, index) => (
                 <div key={index} className="group relative border rounded-lg overflow-hidden">
                   <img src={`data:image/png;base64,${img}`} alt={`Generated image ${index + 1}`} className="w-full h-full object-contain aspect-square bg-muted" />
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -161,16 +148,12 @@ const IconGeneratorView: React.FC = () => {
             </div>
           )}
 
-          {!isLoading && generatedImages.length === 0 && !error && (
-             <Card className="flex-1 flex items-center justify-center border-2 border-dashed border-border h-full min-h-[300px] bg-transparent shadow-none">
-                <CardContent className="text-center text-muted-foreground p-6">
-                    <div className="mx-auto w-fit p-4 bg-secondary rounded-full mb-4">
-                        <ImageIcon className="w-10 h-10" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-foreground">Ready to create?</h3>
-                    <p>Enter a prompt above and click "Generate" to see your images appear here.</p>
-                </CardContent>
-             </Card>
+          {!generateImagesOperation.isLoading && !generateImagesOperation.data && !generateImagesOperation.error && (
+             <EmptyState
+                icon={<ImageIcon className="w-10 h-10" />}
+                title="Ready to create?"
+                description='Enter a prompt above and click "Generate" to see your images appear here.'
+             />
           )}
         </div>
       </div>

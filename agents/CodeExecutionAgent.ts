@@ -3,22 +3,45 @@ import { Agent, AgentExecuteStream } from './types';
 import { Part } from '@google/genai';
 
 const systemInstruction = `### PERSONA
-You are a Principal Software Engineer. You are an expert in algorithms, data structures, and writing clean, efficient Python code. You are also excellent at explaining your work to others.
+You are a Principal Software Engineer. You are an expert in algorithms, data structures, and writing clean, efficient Python code. You are also excellent at explaining your work to others as you go.
 
 ### TASK & GOAL
-Your task is to solve the user's problem by writing and executing Python code. Your goal is to provide a complete solution that includes not just the code, but also the logic behind it and the final result.
+Your task is to solve the user's problem by writing and executing Python code. Your goal is to provide a complete solution that includes not just the code, but also the logic behind it and the final result, streamed in a natural, thought-process-like manner.
 
 ### OUTPUT FORMAT
-You must follow this three-part structure in your response:
+You should stream your response in a logical flow. Think out loud.
+1.  **The Plan:** Start by briefly explaining your approach.
+2.  **The Code:** Write the Python code required to implement your plan. This will be automatically executed.
+3.  **The Explanation:** As soon as the code is executed, immediately state the result and explain what it means in the context of the user's original question.
 
-**1. The Plan:**
-Start with a section titled "### The Plan". In a few sentences, explain the high-level approach you will take to solve the problem.
+### EXAMPLE FLOW
+User Request: "What are the first 5 prime numbers?"
 
-**2. The Code:**
-Follow with a section titled "### The Code". Provide the complete Python code inside a Markdown code block. The code must be executable by the Code Execution tool.
+Your Streamed Response:
+(Thought Chunk) "Okay, I need to write a Python script to find the first 5 prime numbers. I'll create a loop and a helper function to check for primality."
+(Content Chunk) "### The Plan
+I will write a Python function to check if a number is prime. Then, I'll loop through numbers, checking each for primality, until I have collected the first 5 primes."
+(Content Chunk) "### The Code"
+(Executable Code Chunk) \`\`\`python
+def is_prime(n):
+    if n <= 1:
+        return False
+    for i in range(2, int(n**0.5) + 1):
+        if n % i == 0:
+            return False
+    return True
 
-**3. The Explanation:**
-After the code is executed, provide a section titled "### The Explanation". Clearly state the result of the code execution and briefly explain what it means in the context of the user's original question.
+primes = []
+num = 2
+while len(primes) < 5:
+    if is_prime(num):
+        primes.append(num)
+    num += 1
+print(primes)
+\`\`\`
+(Execution Result Chunk) [2, 3, 5, 7, 11]
+(Content Chunk) "### The Explanation
+The code executed successfully. The first 5 prime numbers are 2, 3, 5, 7, and 11."
 
 ### CONSTRAINTS & GUARDRAILS
 - Only use the built-in Python libraries available in the execution environment.
@@ -42,30 +65,31 @@ export const CodeExecutionAgent: Agent = {
     },
     execute: async function* (prompt: string | Part[]): AgentExecuteStream {
         const contents = Array.isArray(prompt) ? prompt : [{ parts: [{ text: prompt }] }];
-        // This agent cannot stream because it needs the full response to parse parts.
-        // However, we can stream the 'thinking' part first if it exists.
-        const response = await geminiService.generateContent({
+        
+        const stream = await geminiService.generateContentStream({
             contents: contents,
             ...this.config,
         });
 
-        let formattedContent = '';
-        const parts = response?.candidates?.[0]?.content?.parts || [];
+        for await (const chunk of stream) {
+            const candidate = chunk.candidates?.[0];
+            if (!candidate) continue;
 
-        for (const part of parts) {
-            if (part.text) {
-                 if(part.thought){
-                    yield { type: 'thought', content: part.text, agentName: this.name };
-                } else {
-                    formattedContent += part.text;
+            for (const part of candidate.content.parts) {
+                if (part.text) {
+                    if (part.thought) {
+                        yield { type: 'thought', content: part.text, agentName: this.name };
+                    } else {
+                        yield { type: 'content', content: part.text, agentName: this.name };
+                    }
+                } else if (part.executableCode && part.executableCode.code) {
+                    const codeContent = `\n\`\`\`python\n${part.executableCode.code}\n\`\`\`\n`;
+                    yield { type: 'content', content: codeContent, agentName: this.name };
+                } else if (part.codeExecutionResult && part.codeExecutionResult.output) {
+                     const resultContent = `\n**Execution Result:**\n\`\`\`text\n${part.codeExecutionResult.output}\n\`\`\`\n`;
+                    yield { type: 'content', content: resultContent, agentName: this.name };
                 }
-            } else if (part.executableCode && part.executableCode.code) {
-                formattedContent += `\n\`\`\`python\n${part.executableCode.code}\n\`\`\`\n`;
-            } else if (part.codeExecutionResult && part.codeExecutionResult.output) {
-                formattedContent += `\n**Execution Result:**\n\`\`\`text\n${part.codeExecutionResult.output}\n\`\`\`\n`;
             }
         }
-        
-        yield { type: 'content', content: formattedContent, agentName: this.name };
     }
 };

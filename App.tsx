@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useContext } from 'react';
 import Sidebar from './components/Sidebar';
 import ChatView from './views/ChatView';
@@ -12,8 +13,9 @@ import GithubInspectorView from './views/GithubInspectorView';
 import HistoryView from './views/HistoryView';
 import { SettingsProvider } from './context/SettingsContext';
 import CodeGraphView from './views/CodeGraphView';
-import KnowledgeBaseView from './views/KnowledgeBaseView';
-import { DocumentIcon } from './components/icons';
+import { DocumentIcon, DatabaseIcon } from './components/icons';
+import MemoryView from './views/MemoryView';
+import { ToastProvider } from './context/ToastContext';
 
 export type ViewName = 
   | 'chat' 
@@ -23,7 +25,7 @@ export type ViewName =
   | 'logo-generator' 
   | 'github-inspector'
   | 'code-graph'
-  | 'knowledge-base'
+  | 'agent-memory'
   | 'history' 
   | 'settings';
 
@@ -95,8 +97,8 @@ const App: React.FC = () => {
         return <GithubInspectorView />;
       case 'code-graph':
         return <CodeGraphView />;
-      case 'knowledge-base':
-        return <KnowledgeBaseView />;
+      case 'agent-memory':
+        return <MemoryView />;
       case 'history':
         return <HistoryView />;
       default:
@@ -107,35 +109,37 @@ const App: React.FC = () => {
   return (
     <SettingsProvider>
       <GithubProvider>
-        <div className="flex h-screen bg-background text-foreground font-sans relative overflow-hidden p-4 gap-4">
-          <div className="spotlight"></div>
-          {/* Background Effects */}
-          <div className="absolute top-0 left-0 w-full h-full -z-10 overflow-hidden background-grid">
-            <div 
-              className="absolute w-[80vw] h-[80vh] bg-primary/5 rounded-full blur-[150px] animate-aurora-bg"
-              style={{
-                '--aurora-start-x': '0%', '--aurora-start-y': '0%', 
-                '--aurora-mid-x': '50%', '--aurora-mid-y': '100%',
-                '--aurora-end-x': '100%', '--aurora-end-y': '0%'} as React.CSSProperties}
-            ></div>
-             <div 
-              className="absolute w-[60vw] h-[70vh] bg-secondary/10 rounded-full blur-[120px] animate-aurora-bg"
-              style={{
-                animationDelay: '15s', 
-                '--aurora-start-x': '100%', '--aurora-start-y': '100%', 
-                '--aurora-mid-x': '0%', '--aurora-mid-y': '50%',
-                '--aurora-end-x': '0%', '--aurora-end-y': '0%'} as React.CSSProperties}
-            ></div>
-          </div>
-
-          <Sidebar activeView={activeView} setActiveView={setActiveView} />
-          <main className="flex-1 flex flex-col overflow-hidden z-10 rounded-lg border bg-card/50 backdrop-blur-lg shadow-2xl shadow-black/10">
-             <div key={viewKey} className="animate-in flex-1 flex flex-col">
-              {renderView()}
+        <ToastProvider>
+            <div className="flex h-screen bg-background text-foreground font-sans relative overflow-hidden p-4 gap-4">
+            <div className="spotlight"></div>
+            {/* Background Effects */}
+            <div className="absolute top-0 left-0 w-full h-full -z-10 overflow-hidden background-grid">
+                <div 
+                className="absolute w-[80vw] h-[80vh] bg-primary/5 rounded-full blur-[150px] animate-aurora-bg"
+                style={{
+                    '--aurora-start-x': '0%', '--aurora-start-y': '0%', 
+                    '--aurora-mid-x': '50%', '--aurora-mid-y': '100%',
+                    '--aurora-end-x': '100%', '--aurora-end-y': '0%'} as React.CSSProperties}
+                ></div>
+                <div 
+                className="absolute w-[60vw] h-[70vh] bg-secondary/10 rounded-full blur-[120px] animate-aurora-bg"
+                style={{
+                    animationDelay: '15s', 
+                    '--aurora-start-x': '100%', '--aurora-start-y': '100%', 
+                    '--aurora-mid-x': '0%', '--aurora-mid-y': '50%',
+                    '--aurora-end-x': '0%', '--aurora-end-y': '0%'} as React.CSSProperties}
+                ></div>
             </div>
-          </main>
-          <StagedFilesIndicator />
-        </div>
+
+            <Sidebar activeView={activeView} setActiveView={setActiveView} />
+            <main className="flex-1 flex flex-col overflow-hidden z-10 rounded-lg border bg-card/50 backdrop-blur-lg shadow-2xl shadow-black/10">
+                <div key={viewKey} className="animate-in flex-1 flex flex-col overflow-y-auto custom-scrollbar">
+                {renderView()}
+                </div>
+            </main>
+            <StagedFilesIndicator />
+            </div>
+        </ToastProvider>
       </GithubProvider>
     </SettingsProvider>
   );

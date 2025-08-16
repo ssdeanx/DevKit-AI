@@ -1,115 +1,16 @@
-import React, { useState, useContext, useEffect, useMemo } from 'react';
+import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
 import { GithubContext } from '../context/GithubContext';
-import { GithubIcon, PlusCircleIcon, XCircleIcon, CheckCircleIcon, FilesIcon, FileMinusIcon } from '../components/icons';
+import { GithubIcon, FilesIcon, FileMinusIcon } from '../components/icons';
 import { FileNode, StagedFile } from '../services/github.service';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Label } from '../components/ui/Label';
-import { cn } from '../lib/utils';
 import ViewHeader from '../components/ViewHeader';
+import { FileTree } from '../components/FileTree';
 
 
 const GITHUB_API_KEY_STORAGE_KEY = 'devkit-github-api-key';
-
-const getFilePathsFromNode = (node: FileNode): string[] => {
-    let paths: string[] = [];
-    if (node.type === 'file') {
-        paths.push(node.path);
-    } else if (node.type === 'dir' && node.children) {
-        node.children.forEach(child => {
-            paths.push(...getFilePathsFromNode(child));
-        });
-    }
-    return paths;
-};
-
-const getFolderStagingStatus = (folderNode: FileNode, stagedFiles: StagedFile[]): 'none' | 'partial' | 'full' => {
-    const allFiles = getFilePathsFromNode(folderNode);
-    if (allFiles.length === 0) return 'none'; 
-    const stagedFilePaths = new Set(stagedFiles.map(f => f.path));
-    const stagedCount = allFiles.filter(path => stagedFilePaths.has(path)).length;
-    if (stagedCount === 0) return 'none';
-    if (stagedCount === allFiles.length) return 'full';
-    return 'partial';
-};
-
-
-const FileTree: React.FC<{ 
-    tree: FileNode[]; 
-    stagedFiles: StagedFile[];
-    onStageFile: (path: string) => void;
-    onStageFolder: (path: string) => void;
-    onUnstageFolder: (path: string) => void;
-}> = ({ tree, stagedFiles, onStageFile, onStageFolder, onUnstageFolder }) => {
-  const renderNode = (node: FileNode, level = 0) => {
-    const isStaged = stagedFiles.some(f => f.path === node.path);
-    const indent = level * 20;
-
-    if (node.type === 'dir') {
-        const status = getFolderStagingStatus(node, stagedFiles);
-        let ActionIcon: React.FC<any> | null = null;
-        let action: (() => void) | null = null;
-        let tooltip: string | undefined = undefined;
-
-        if (status === 'full') {
-            ActionIcon = XCircleIcon;
-            action = () => onUnstageFolder(node.path);
-            tooltip = "Unstage all files in this folder";
-        } else if (status === 'none' || status === 'partial') {
-            ActionIcon = PlusCircleIcon;
-            action = () => onStageFolder(node.path);
-            tooltip = status === 'none' ? "Stage all files in this folder" : "Stage remaining files in this folder";
-        }
-
-        return (
-            <div key={node.path}>
-                <div className="group flex items-center py-1.5 px-2 hover:bg-accent/50 rounded" style={{ paddingLeft: `${indent}px` }}>
-                    <span className="mr-2">📁</span>
-                    <span className="flex-1 truncate" title={node.name}>{node.name}</span>
-                    {ActionIcon && action && (
-                        <Button 
-                            size="icon" 
-                            variant="ghost" 
-                            className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                            onClick={action}
-                            data-tooltip={tooltip}
-                        >
-                            <ActionIcon className="w-4 h-4 text-muted-foreground" />
-                        </Button>
-                    )}
-                </div>
-                {node.children && node.children.map(child => renderNode(child, level + 1))}
-            </div>
-        );
-    }
-    
-    // File node rendering
-    return (
-        <div key={node.path} style={{ paddingLeft: `${indent}px` }}>
-            <div className="group flex items-center py-1.5 px-2 hover:bg-accent/50 rounded">
-                <span className="mr-2">📄</span>
-                <span className="flex-1 truncate" title={node.name}>{node.name}</span>
-                {isStaged ? (
-                    <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0" title="File is staged" />
-                ) : (
-                    <Button 
-                        size="icon" 
-                        variant="ghost" 
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                        onClick={() => onStageFile(node.path)}
-                        data-tooltip="Stage file for context"
-                    >
-                        <PlusCircleIcon className="w-4 h-4 text-muted-foreground" />
-                    </Button>
-                )}
-            </div>
-        </div>
-    );
-  };
-
-  return <div className="font-mono text-sm text-foreground/80">{tree.map(node => renderNode(node))}</div>;
-};
 
 const StagedFiles: React.FC<{
     files: StagedFile[];
@@ -124,12 +25,12 @@ const StagedFiles: React.FC<{
     }
 
     return (
-        <div className="space-y-2 p-2 max-h-48 overflow-y-auto custom-scrollbar">
+        <div className="space-y-2 p-2 h-full overflow-y-auto custom-scrollbar">
             {files.map(file => (
                 <div key={file.path} className="group flex items-center justify-between bg-secondary/50 p-2 rounded text-sm">
                     <span className="truncate" title={file.path}>{file.path}</span>
                     <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={() => onUnstage(file.path)}>
-                        <XCircleIcon className="w-4 h-4 text-muted-foreground group-hover:text-destructive" />
+                        <FileMinusIcon className="w-4 h-4 text-muted-foreground group-hover:text-destructive" />
                     </Button>
                 </div>
             ))}
@@ -146,6 +47,48 @@ const GithubInspectorView: React.FC = () => {
         stagedFiles, stageFile, unstageFile, stageFolder, unstageFolder,
         stageAllFiles, unstageAllFiles 
     } = useContext(GithubContext);
+
+    const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+    const [isAllExpanded, setIsAllExpanded] = useState(false);
+
+    const toggleFolder = useCallback((path: string) => {
+        setExpandedFolders(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(path)) {
+                newSet.delete(path);
+            } else {
+                newSet.add(path);
+            }
+            return newSet;
+        });
+    }, []);
+
+    const expandAll = useCallback(() => {
+        if (!fileTree) return;
+        const allFolderPaths = new Set<string>();
+        const traverse = (nodes: FileNode[]) => {
+            nodes.forEach(node => {
+                if (node.type === 'dir') {
+                    allFolderPaths.add(node.path);
+                    if (node.children) traverse(node.children);
+                }
+            });
+        };
+        traverse(fileTree);
+        setExpandedFolders(allFolderPaths);
+        setIsAllExpanded(true);
+    }, [fileTree]);
+
+    const collapseAll = useCallback(() => {
+        setExpandedFolders(new Set());
+        setIsAllExpanded(false);
+    }, []);
+
+    useEffect(() => {
+        if (fileTree) {
+           expandAll();
+        }
+    }, [fileTree, expandAll]);
 
     const totalFiles = useMemo(() => {
         if (!fileTree) return 0;
@@ -183,7 +126,7 @@ const GithubInspectorView: React.FC = () => {
     };
 
     return (
-        <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
+        <div className="flex flex-col h-full bg-background overflow-hidden">
             <ViewHeader
                 icon={<GithubIcon className="w-6 h-6" />}
                 title="GitHub Inspector"
@@ -226,15 +169,17 @@ const GithubInspectorView: React.FC = () => {
                          <CardHeader>
                             <div className="flex justify-between items-center">
                                 <div className="space-y-1.5">
-                                    <CardTitle>Staged Files for Context</CardTitle>
+                                    <CardTitle>Staged Files ({stagedFiles.length})</CardTitle>
                                     <CardDescription>The content of these files will be sent to context-aware agents.</CardDescription>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <Button size="icon" variant="outline" onClick={handleStageAll} disabled={!fileTree || stagedFiles.length === totalFiles} data-tooltip="Stage All Files">
-                                        <FilesIcon className="w-5 h-5" />
+                                    <Button size="sm" variant="outline" onClick={handleStageAll} disabled={!fileTree || stagedFiles.length === totalFiles}>
+                                        <FilesIcon className="w-4 h-4 mr-2" />
+                                        Stage All
                                     </Button>
-                                     <Button size="icon" variant="outline" onClick={unstageAllFiles} disabled={stagedFiles.length === 0} data-tooltip="Unstage All Files">
-                                        <FileMinusIcon className="w-5 h-5" />
+                                     <Button size="sm" variant="outline" onClick={unstageAllFiles} disabled={stagedFiles.length === 0}>
+                                        <FileMinusIcon className="w-4 h-4 mr-2" />
+                                        Unstage All
                                     </Button>
                                 </div>
                             </div>
@@ -248,8 +193,19 @@ const GithubInspectorView: React.FC = () => {
                 {/* Right Column */}
                 <Card className="flex-1 flex flex-col overflow-hidden">
                     <CardHeader>
-                        <CardTitle>Repository Structure</CardTitle>
-                        {repoUrl && <CardDescription className="font-mono text-primary/80">{repoUrl}</CardDescription>}
+                        <div className="flex justify-between items-center">
+                             <div>
+                                <CardTitle>Repository Structure</CardTitle>
+                                {repoUrl && <CardDescription className="font-mono text-primary/80">{repoUrl.split('/').slice(-2).join('/')}</CardDescription>}
+                             </div>
+                             {fileTree && (
+                                <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" onClick={isAllExpanded ? collapseAll : expandAll}>
+                                        {isAllExpanded ? "Collapse All" : "Expand All"}
+                                    </Button>
+                                </div>
+                             )}
+                        </div>
                     </CardHeader>
                     <CardContent className="flex-1 overflow-y-auto custom-scrollbar">
                         {isLoading && (
@@ -261,7 +217,17 @@ const GithubInspectorView: React.FC = () => {
                             </div>
                         )}
                         
-                        {!isLoading && fileTree && <FileTree tree={fileTree} stagedFiles={stagedFiles} onStageFile={handleStageFile} onStageFolder={handleStageFolder} onUnstageFolder={unstageFolder} />}
+                        {!isLoading && fileTree && (
+                            <FileTree 
+                                tree={fileTree} 
+                                stagedFiles={stagedFiles} 
+                                onStageFile={handleStageFile} 
+                                onStageFolder={handleStageFolder} 
+                                onUnstageFolder={unstageFolder}
+                                expandedFolders={expandedFolders}
+                                onToggleFolder={toggleFolder}
+                            />
+                        )}
 
                          {error && <p className="text-sm text-destructive mt-4 p-3 bg-destructive/10 rounded-md">{error}</p>}
                         

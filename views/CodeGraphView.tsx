@@ -19,7 +19,8 @@ import { Button } from '../components/ui/Button';
 import { CodeGraphIcon, CloseIcon, LoaderIcon } from '../components/icons';
 import { cacheService } from '../services/cache.service';
 import { useSettings } from '../context/SettingsContext';
-import { cn } from '../lib/utils';
+import { useAsyncOperation } from '../hooks/useAsyncOperation';
+import EmptyState from '../components/EmptyState';
 import ViewHeader from '../components/ViewHeader';
 
 const getNodeColor = (type?: string) => {
@@ -96,8 +97,6 @@ const CodeGraphView: React.FC = () => {
   const [isGraphLoading, setIsGraphLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
-  const [summary, setSummary] = useState<string | null>(null);
-  const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
 
@@ -173,25 +172,18 @@ const CodeGraphView: React.FC = () => {
     }
   }, [fileTree, repoUrl, settings.isCacheEnabled, stagedFiles]);
 
-  const handleSummarizeNode = async () => {
-    if (!selectedNode) return;
-    setIsSummaryLoading(true);
-    setSummary(null);
-    try {
-      const prompt = `Based on the file path "${selectedNode.id}", what is the likely purpose of this file? Provide a one-sentence summary.`;
-      const { stream } = await supervisor.handleRequest(prompt, { fileTree, stagedFiles }, { setActiveView: () => {} }, 'chat-agent');
-      let content = '';
-      for await (const chunk of stream) {
+  const summarizeOperation = useAsyncOperation(async (node: Node | null) => {
+    if (!node) return null;
+    const prompt = `Based on the file path "${node.id}", what is the likely purpose of this file? Provide a one-sentence summary.`;
+    const { stream } = await supervisor.handleRequest(prompt, { fileTree, stagedFiles }, { setActiveView: () => {} }, 'chat-agent');
+    let content = '';
+    for await (const chunk of stream) {
         if (chunk.type === 'content') content += chunk.content;
-      }
-      setSummary(content);
-    } catch (e) {
-      console.error(e);
-      setSummary("Could not generate summary.");
-    } finally {
-      setIsSummaryLoading(false);
     }
-  };
+    return content;
+  }, {
+      onError: (e) => console.error(e)
+  });
 
   const onNodeMouseEnter = (_: React.MouseEvent, node: Node) => setHoveredNodeId(node.id);
   const onNodeMouseLeave = () => setHoveredNodeId(null);
@@ -208,17 +200,17 @@ const CodeGraphView: React.FC = () => {
     setNodes(nds =>
         nds.map(n => ({
             ...n,
-            className: cn({ 'dimmed': !connectedNodeIds.has(n.id) && n.id !== hoveredNodeId }),
+            className: n.id !== hoveredNodeId && !connectedNodeIds.has(n.id) ? 'dimmed' : '',
         }))
     );
      setEdges(eds =>
         eds.map(e => ({
             ...e,
-            className: cn({ 'dimmed': !connectedEdges.includes(e) }),
+            className: !connectedEdges.some(ce => ce.id === e.id) ? 'dimmed' : '',
         }))
     );
 
-  }, [hoveredNodeId, edges]);
+  }, [hoveredNodeId, edges, setNodes, setEdges]);
 
 
   useEffect(() => {
@@ -233,7 +225,7 @@ const CodeGraphView: React.FC = () => {
   const isButtonDisabled = isRepoLoading || isGraphLoading || !repoUrl;
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
+    <div className="flex flex-col h-full bg-background overflow-hidden">
       <ViewHeader
         icon={<CodeGraphIcon className="w-6 h-6" />}
         title="Code Graph"
@@ -246,7 +238,7 @@ const CodeGraphView: React.FC = () => {
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onNodeClick={(_, node) => { setSelectedNode(node); setSummary(null); }}
+          onNodeClick={(_, node) => { setSelectedNode(node); summarizeOperation.reset(); }}
           onNodeMouseEnter={onNodeMouseEnter}
           onNodeMouseLeave={onNodeMouseLeave}
           fitView
@@ -306,10 +298,11 @@ const CodeGraphView: React.FC = () => {
                     <CardContent className="p-4 pt-0">
                         <p className="text-xs text-muted-foreground break-all mb-4"><strong>Path:</strong> {selectedNode.id}</p>
                         <div className="space-y-2">
-                             <Button onClick={handleSummarizeNode} disabled={isSummaryLoading} className="w-full">
-                                {isSummaryLoading ? 'Summarizing...' : 'Summarize File (AI)'}
+                             <Button onClick={() => summarizeOperation.execute(selectedNode)} disabled={summarizeOperation.isLoading} className="w-full">
+                                {summarizeOperation.isLoading ? 'Summarizing...' : 'Summarize File (AI)'}
                             </Button>
-                            {summary && <p className="text-sm bg-muted/50 p-3 rounded-md animate-in">{summary}</p>}
+                            {summarizeOperation.data && <p className="text-sm bg-muted/50 p-3 rounded-md animate-in">{summarizeOperation.data}</p>}
+                            {summarizeOperation.error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md animate-in">Could not generate summary.</p>}
                         </div>
                     </CardContent>
                 </Card>
@@ -327,21 +320,13 @@ const CodeGraphView: React.FC = () => {
 
         {!isGraphLoading && nodes.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-                <Card className="text-center text-muted-foreground p-8 max-w-md bg-card/80 backdrop-blur-sm">
-                    <CardHeader>
-                        <div className="mx-auto w-fit p-4 bg-secondary rounded-full mb-4">
-                            <CodeGraphIcon className="w-12 h-12 text-foreground" />
-                        </div>
-                        <CardTitle className="text-xl text-foreground">Code Graph Visualizer</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p>
-                            {repoUrl 
-                                ? "Your project is loaded. Click the 'Generate Graph' button to visualize its structure."
-                                : "Go to the 'GitHub Inspector' tab to load a repository first, then come back here to generate the graph."}
-                        </p>
-                    </CardContent>
-                </Card>
+                <EmptyState
+                    icon={<CodeGraphIcon className="w-12 h-12 text-foreground" />}
+                    title="Code Graph Visualizer"
+                    description={repoUrl 
+                        ? "Your project is loaded. Click the 'Generate Graph' button to visualize its structure."
+                        : "Go to the 'GitHub Inspector' tab to load a repository first, then come back here to generate the graph."}
+                />
             </div>
         )}
       </div>
