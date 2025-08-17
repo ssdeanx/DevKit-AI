@@ -1,3 +1,4 @@
+
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part, Content } from '@google/genai';
@@ -14,24 +15,24 @@ Your task is to generate a world-class README.md file by following a strict, gui
 ### GOLD STANDARD EXAMPLE
 *This is the quality you must emulate. Note its structure, tone, and use of badges and emojis.*
 
-# 🚀 Cal.com
-> The open-source Calendly alternative.
+# 🚀 Cal.com - The Open Source Scheduling Platform
+> The open-source Calendly alternative for everyone.
 
-[![Vercel Status](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fcalcom%2Fcal.com) ...
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fcalcom%2Fcal.com) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Cal.com is a scheduling tool that helps you schedule meetings without the back-and-forth emails. It's built with Next.js, React, and Prisma, and it's designed to be self-hostable and fully customizable.
+Cal.com is a scheduling tool that helps you schedule meetings without the back-and-forth emails. It's built with Next.js, React, and Prisma, and it's designed to be self-hostable and fully customizable, giving you complete control over your data and brand.
 
 ## ✨ Features
-- **Event Types:** Create unlimited, highly customizable event types.
-- **Workflows:** Automate reminders and follow-ups.
-- **Routing Forms:** Route leads and customers to the right person on your team.
-- **App Store:** An ecosystem of apps to enhance your scheduling.
+- **Event Types:** Create unlimited, highly customizable event types for any kind of meeting.
+- **Workflows:** Automate reminders and follow-ups to reduce no-shows.
+- **Routing Forms:** Intelligently route leads and customers to the right person on your team.
+- **App Store:** A rich ecosystem of apps to enhance your scheduling (Google Calendar, Stripe, etc.).
 
 ---
 ### YOUR OUTPUT STRUCTURE
 
 # [Project Name] 🚀
-> [A compelling, one-sentence tagline]
+> [A compelling, one-sentence tagline that captures the project's essence.]
 
 [Add relevant badges you can infer, like licenses or build status.]
 
@@ -73,7 +74,7 @@ npm run dev
 export const ReadmeAgent: Agent = {
     id: 'readme-agent',
     name: 'ReadmeAgent',
-    description: 'A specialized agent that generates professional, well-structured README.md files for software projects. Ideal for creating documentation from scratch.',
+    description: 'Generates a professional README.md file by analyzing your project structure and description.',
     acceptsContext: true,
     config: {
         config: {

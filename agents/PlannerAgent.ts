@@ -4,24 +4,24 @@ import { Agent, AgentExecuteStream } from './types';
 import { Type, Part, Content } from '@google/genai';
 
 const AGENT_DEFINITIONS = [
-    { name: 'ChatAgent', description: 'A general-purpose agent for conversations, answering questions, and providing explanations on a wide range of topics. Use for general queries.' },
-    { name: 'ReadmeAgent', description: 'A specialized agent that generates professional, well-structured README.md files for software projects. Ideal for creating documentation from scratch.' },
-    { name: 'ProjectRulesAgent', description: 'Generates a "Project Constitution" for AI agents, defining coding standards and architectural patterns based on the repository.' },
-    { name: 'PullRequestAgent', description: 'A specialized agent that reviews code changes in a pull request, providing feedback on bugs, style, and best practices.' },
-    { name: 'IssueLabelAgent', description: 'A specialized agent that analyzes a GitHub issue and suggests/applies appropriate labels.'},
-    { name: 'ResearchAgent', description: 'Uses Google Search to answer questions about recent events, or topics that require up-to-date information from the web.' },
-    { name: 'RefinerAgent', description: 'Refines, rewrites, or improves existing text. Provide it with content and instructions (e.g., "make this more professional").' },
-    { name: 'IconPromptAgent', description: 'Takes a simple idea (e.g., "a logo for a space company") and generates detailed, descriptive prompts for an AI image generator.' },
+    { name: 'ChatAgent', description: 'Answers general programming questions, explains code, or engages in conversation.' },
+    { name: 'ReadmeAgent', description: 'Generates a professional README.md file by analyzing project structure and description.' },
+    { name: 'ProjectRulesAgent', description: 'Generates a "Project Constitution" defining coding standards based on the repository.' },
+    { name: 'PullRequestAgent', description: 'Performs an expert code review of a pull request, providing actionable feedback.' },
+    { name: 'IssueLabelAgent', description: 'Analyzes a GitHub issue via its URL and applies the correct labels.'},
+    { name: 'ResearchAgent', description: 'Uses Google Search to answer questions about recent events or topics requiring web data.' },
+    { name: 'RefinerAgent', description: 'Refines, rewrites, or improves existing text based on a specific instruction (e.g., "make this more professional").' },
+    { name: 'IconPromptAgent', description: 'Generates detailed, creative prompts for an AI image generator from a simple idea.' },
     { name: 'ImageRefinementAgent', description: 'A multimodal agent that refines image prompts based on visual and text feedback.'},
-    { name: 'CodeExecutionAgent', description: 'Writes and executes Python code to answer complex questions, perform calculations, or analyze data. Use it for logic and computation.' },
-    { name: 'StructuredOutputAgent', description: 'Outputs structured JSON data based on a schema. Ask it for lists of items (e.g., "list 5 sci-fi movies from the 80s") and it will return a clean JSON response. You can define the schema in Settings.' },
-    { name: 'UrlAgent', description: 'Reads content from web pages. Provide URLs in your prompt and ask it to summarize, compare, or answer questions.' },
-    { name: 'FunctionCallingAgent', description: 'Uses Function Calling to control the application or perform specific actions. Use this for commands like "navigate to settings" or "change the temperature of the ReadmeAgent".' },
-    { name: 'CodeGraphAgent', description: 'Analyzes the file structure of a loaded GitHub repository and generates a visual dependency graph of its components.' }
+    { name: 'CodeExecutionAgent', description: 'Writes and executes Python code to solve complex problems, perform calculations, or analyze data.' },
+    { name: 'StructuredOutputAgent', description: 'Outputs structured JSON data based on a schema (e.g., "list 5 movies as a JSON array").' },
+    { name: 'UrlAgent', description: 'Summarizes or answers questions about content from a provided web page URL.' },
+    { name: 'FunctionCallingAgent', description: 'Controls the application UI or settings via function calls (e.g., "navigate to settings").' },
+    { name: 'CodeGraphAgent', description: 'Analyzes the repository file structure and generates a visual dependency graph.' }
 ];
 
 const agentNames = AGENT_DEFINITIONS.map(a => a.name);
-const agentDescriptions = AGENT_DEFINITIONS.map(a => `- ${a.name}: ${a.description}`).join('\n');
+const agentDescriptions = AGENT_DEFINITIONS.map(a => `- **${a.name}**: ${a.description}`).join('\n');
 
 
 const systemInstruction = `### PERSONA
@@ -85,7 +85,7 @@ const responseSchema = {
 export const PlannerAgent: Agent = {
     id: 'planner-agent',
     name: 'PlannerAgent',
-    description: 'Decomposes complex, multi-step tasks into a structured plan for other agents to execute. Use for requests requiring multiple skills (e.g., "research X and then summarize it").',
+    description: 'Decomposes complex, multi-step tasks into a plan for other agents to execute.',
     config: {
         config: {
             systemInstruction,

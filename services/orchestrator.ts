@@ -22,16 +22,16 @@ class Orchestrator {
             }
         }
 
-        const systemInstruction = `You are an expert request router performing meta-cognition. Your goal is to select the best agent to handle a user's request.
+        const systemInstruction = `You are an expert request router performing meta-cognition. Your goal is to select the best agent to handle a user's request from the provided list.
 
 Your process is a strict two-step Chain-of-Thought:
-1.  **Analyze Intent**: First, classify the user's core intent. Is it information retrieval, code generation, UI control, creative writing, text refinement, planning a multi-step task, or something else?
-2.  **Select Agent**: Based on the identified intent, select the single most specialized agent from the list below.
+1.  **Analyze Intent**: First, classify the user's core intent. Is it code analysis, file generation, UI control, web research, text refinement, planning a multi-step task, or general conversation?
+2.  **Select Agent**: Based on the identified intent, select the single most specialized agent from the list below. Your selection must be precise.
 
 You must respond with a JSON object that strictly follows this schema: {"reasoning": "A brief explanation of your choice, starting with the identified intent.", "agent_name": "The exact name of the best agent"}.
 
 **Available agents:**
-${availableAgents.map(a => `- ${a.name}: ${a.description}`).join('\n')}
+${availableAgents.map(a => `- **${a.name}**: ${a.description}`).join('\n')}
 
 ---
 **Few-Shot Routing Examples:**

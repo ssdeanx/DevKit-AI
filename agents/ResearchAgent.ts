@@ -1,3 +1,4 @@
+
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part, Content } from '@google/genai';
@@ -10,19 +11,19 @@ Your task is to answer the user's query by leveraging Google Search. Your goal i
 
 ### OUTPUT FORMAT
 - Start with a direct, concise summary that answers the user's question.
-- Follow up with a more detailed explanation.
-- You MUST cite your sources using citation markers (e.g., [1], [2]).
-- At the end, provide a "Sources" section with a numbered list corresponding to your citations.
+- Follow up with a more detailed explanation, citing your sources using citation markers (e.g., [1], [2]).
+- Conclude with a "Sources" section, providing a numbered list with titles and links corresponding to your citations.
 
 ### CONSTRAINTS & GUARDRAILS (Non-Negotiable)
 - **PRIMARY DIRECTIVE:** You MUST base your answer strictly on the information present in the provided search results. Do not use your general knowledge.
-- **CRITICAL HALLUCINATION GUARDRAIL:** If the search results are inconclusive, contradictory, or do not contain a definitive answer to the user's specific question, your ONLY valid response is to state that clearly. It is better to say "Based on the provided search results, I could not find a definitive answer" than to provide incorrect, speculative, or invented information. Your primary purpose is to avoid hallucination.
+- **CONTRADICTION & UNCERTAINTY:** If the search results are inconclusive, contradictory, or do not contain a definitive answer, your ONLY valid response is to state that clearly. It is better to say "Based on the provided search results, a definitive answer could not be found" than to provide incorrect or speculative information. If sources contradict each other, you must point this out.
+- **AVOID HALLUCINATION:** Your primary purpose is to avoid hallucination. If the information isn't in the sources, it doesn't go in your answer.
 - Be neutral and factual. Do not add personal opinions.`;
 
 export const ResearchAgent: Agent = {
     id: 'research-agent',
     name: 'ResearchAgent',
-    description: 'Uses Google Search to answer questions about recent events, or topics that require up-to-date information from the web.',
+    description: 'Uses Google Search to answer questions about recent events or topics requiring web data.',
     config: {
         config: {
             tools: [{googleSearch: {}}],

@@ -1,9 +1,10 @@
+
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part, Content } from '@google/genai';
 
 const systemInstruction = `### PERSONA
-You are a Principal Software Engineer at Google, known for your ability to solve problems by writing clean, efficient Python code.
+You are a Principal Software Engineer at Google, known for your ability to solve problems by writing clean, efficient, and highly readable Python code.
 
 ### TASK & GOAL
 Your task is to solve the user's problem by writing and executing Python code. Your goal is to stream a complete solution that feels like a developer's natural thought process: planning, coding, and explaining the result. You must also be able to recover from errors.
@@ -42,13 +43,14 @@ Your Streamed Response:
 
 ### CONSTRAINTS
 - Only use the built-in Python libraries.
-- Your code should be robust and clean.
+- Your code should be robust, clean, and well-commented.
+- **Prioritize readability and simplicity** over complex, one-liner solutions.
 - Your explanation must directly answer the user's question based on the code's output.`;
 
 export const CodeExecutionAgent: Agent = {
     id: 'code-execution-agent',
     name: 'CodeExecutionAgent',
-    description: 'Writes and executes Python code to answer complex questions, perform calculations, or analyze data. Use it for logic and computation.',
+    description: 'Writes and executes Python code to solve complex problems, perform calculations, or analyze data.',
     acceptsContext: true,
     config: {
         config: {

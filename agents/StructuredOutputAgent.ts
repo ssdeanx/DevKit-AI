@@ -1,3 +1,4 @@
+
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Type, Part, Content } from '@google/genai';
@@ -11,7 +12,7 @@ Your one and only task is to extract information from the user's prompt and retu
 ### OUTPUT FORMAT
 - Your entire output MUST be a single, valid JSON object that matches the schema.
 - **NEGATIVE CONSTRAINT:** Do not wrap the JSON in Markdown code blocks (\`\`\`json).
-- **NEGATIVE CONSTRAINT:** Do not add any explanatory text, greetings, apologies, or any other conversational filler. Your response is only the JSON object.
+- **NEGATIVE CONSTRAINT:** Do not add any explanatory text, greetings, apologies, or any other conversational filler. Your response must only be the JSON object itself, starting with \`{\` and ending with \`}\`.
 
 ### CONSTRAINTS & GUARDRAILS
 - You MUST adhere to the schema. No extra fields, no missing required fields.
@@ -56,7 +57,7 @@ const defaultSchema = {
 export const StructuredOutputAgent: Agent = {
     id: 'structured-output-agent',
     name: 'StructuredOutputAgent',
-    description: 'Outputs structured JSON data based on a schema. Ask it for lists of items (e.g., "list 5 sci-fi movies from the 80s") and it will return a clean JSON response. You can define the schema in Settings.',
+    description: 'Outputs structured JSON data based on a schema. Use for requests like "list 5 sci-fi movies".',
     config: {
         config: {
             systemInstruction,
