@@ -1,4 +1,5 @@
 
+
 import React, { useState, useContext } from 'react';
 import { GithubIcon, SparklesIcon, GitPullRequestIcon, RefreshCwIcon, SearchIcon, TagsIcon } from '../components/icons';
 import ViewHeader from '../components/ViewHeader';
@@ -17,6 +18,7 @@ import { useAsyncOperation } from '../hooks/useAsyncOperation';
 import { ViewName } from '../App';
 import { cn } from '../lib/utils';
 import { IssueLabelAgent } from '../agents/IssueLabelAgent';
+import GenerationInProgress from '../components/GenerationInProgress';
 
 const MyPullRequests: React.FC = () => {
     const { apiKey } = useContext(GithubContext);
@@ -96,7 +98,12 @@ const MyPullRequests: React.FC = () => {
                 </div>
                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6 relative z-10">
                     {fetchPrFiles.isLoading && <p>Fetching PR details...</p>}
-                    {!reviewOperation.content && !reviewOperation.isLoading && !selectedPr && (
+
+                    {reviewOperation.isLoading ? (
+                        <GenerationInProgress agentName={reviewOperation.agentName} thoughts={reviewOperation.thoughts} />
+                    ) : reviewOperation.content ? (
+                        <MarkdownRenderer content={reviewOperation.content} />
+                    ) : !selectedPr && (
                         <div className="h-full flex items-center justify-center">
                             <EmptyState
                                 icon={<GitPullRequestIcon className="w-12 h-12" />}
@@ -105,14 +112,7 @@ const MyPullRequests: React.FC = () => {
                             />
                         </div>
                     )}
-                    {reviewOperation.content && <MarkdownRenderer content={reviewOperation.content} />}
                  </div>
-                 {reviewOperation.isLoading && (
-                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in">
-                        <SparklesIcon className="w-12 h-12 text-primary animate-pulse" />
-                        <h3 className="text-xl font-semibold mt-4">Generating Review...</h3>
-                    </div>
-                )}
             </div>
         </div>
     );
@@ -210,12 +210,15 @@ const IssueLabeler: React.FC = () => {
                             Suggest & Apply Labels
                         </Button>
                     </div>
-                    {(labelOperation.isLoading || labelOperation.thoughts || labelOperation.content || labelOperation.error) && (
+                    {(labelOperation.isLoading || labelOperation.content || labelOperation.error) && (
                         <div className="p-4 border rounded-lg bg-muted/30 min-h-[200px]">
-                            {labelOperation.isLoading && <p>AI is analyzing the issue...</p>}
-                            {labelOperation.error && <p className="text-destructive">{labelOperation.error}</p>}
-                            {labelOperation.thoughts && <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono mb-4">THOUGHTS: {labelOperation.thoughts}</pre>}
-                            {labelOperation.content && <MarkdownRenderer content={labelOperation.content} />}
+                            {labelOperation.isLoading ? (
+                               <GenerationInProgress agentName={labelOperation.agentName} thoughts={labelOperation.thoughts} />
+                            ) : labelOperation.error ? (
+                               <p className="text-destructive">{labelOperation.error}</p>
+                            ) : (
+                               <MarkdownRenderer content={labelOperation.content} />
+                            )}
                         </div>
                     )}
                 </CardContent>

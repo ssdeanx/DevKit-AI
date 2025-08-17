@@ -63,8 +63,9 @@ export const UserIcon: React.FC<IconProps> = (props) => (
     </svg>
 );
 
-export const BotIcon: React.FC<IconProps> = (props) => (
+export const BotIcon: React.FC<IconProps & { title?: string }> = ({ title, ...props }) => (
     <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {title && <title>{title}</title>}
         <path d="M12 8V4H8"/>
         <rect width="16" height="12" x="4" y="8" rx="2"/>
         <path d="M2 14h2"/>
@@ -157,8 +158,9 @@ export const CheckCircleIcon: React.FC<React.SVGProps<SVGSVGElement> & { title?:
     </svg>
 );
 
-export const LoaderIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+export const LoaderIcon: React.FC<React.SVGProps<SVGSVGElement> & { title?: string }> = ({ title, ...props }) => (
     <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {title && <title>{title}</title>}
         <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
     </svg>
 );

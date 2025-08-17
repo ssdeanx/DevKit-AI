@@ -1,5 +1,6 @@
 
 
+
 import React from 'react';
 import { Message } from '../views/ChatView';
 import { useSettings } from '../context/SettingsContext';
@@ -67,18 +68,17 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, isLastMes
                   settings.agentThoughtsStyle === 'code-comment' && 'thoughts-code-comment',
                   settings.agentThoughtsStyle === 'matrix' && 'thoughts-matrix',
                   settings.agentThoughtsStyle === 'scroll' && 'thoughts-scroll',
+                  settings.agentThoughtsStyle === 'notebook' && 'thoughts-notebook',
+                  settings.agentThoughtsStyle === 'gradient-glow' && 'thoughts-gradient-glow',
+                  settings.agentThoughtsStyle === 'scientific-journal' && 'thoughts-scientific-journal',
+                  settings.agentThoughtsStyle === 'redacted' && 'thoughts-redacted'
               )}>
                 <CardContent className="p-3">
                     <h4 className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-2"><BrainIcon className="w-4 h-4" /> AGENT THOUGHTS</h4>
                     <div className={cn(
                         "text-xs min-h-[20px]",
-                        settings.agentThoughtsStyle === 'default' && 'text-muted-foreground',
-                        settings.agentThoughtsStyle === 'terminal' && 'text-[#C9D1D9]',
-                        settings.agentThoughtsStyle === 'matrix' && 'text-green-400',
-                        settings.agentThoughtsStyle === 'handwritten' && 'text-gray-800 dark:text-gray-300',
-                        settings.agentThoughtsStyle === 'code-comment' && 'thoughts-code-comment-content text-gray-500 dark:text-gray-400',
-                        settings.agentThoughtsStyle === 'scroll' && 'text-gray-800 dark:text-gray-300',
-                        needsCursor && message.thoughts && 'typing-cursor'
+                        settings.agentThoughtsStyle === 'code-comment' && 'thoughts-code-comment-content',
+                        needsCursor && 'typing-cursor'
                     )} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                       {message.thoughts}
                     </div>
@@ -97,10 +97,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, isLastMes
                     <div className="mt-2 pt-2 border-t border-border/20 flex justify-between items-center">
                         <span className="text-xs font-mono text-muted-foreground">{message.agentName || 'AI'}</span>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button variant="ghost" size="sm" onClick={() => onFeedback(message.id, 'positive')} disabled={message.feedback === 'positive'} className={cn("h-auto p-1", message.feedback === 'positive' ? 'text-success-DEFAULT' : 'text-muted-foreground hover:text-success-DEFAULT')} data-tooltip="Good response">
+                            <Button variant="ghost" size="sm" onClick={() => onFeedback(message.id, 'positive')} disabled={message.feedback === 'positive'} className={cn("h-auto p-1", message.feedback === 'positive' ? 'text-success' : 'text-muted-foreground hover:text-success')} data-tooltip="Good response">
                                 <ThumbsUpIcon className="w-4 h-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => onFeedback(message.id, 'negative')} disabled={message.feedback === 'negative'} className={cn("h-auto p-1", message.feedback === 'negative' ? 'text-destructive-DEFAULT' : 'text-muted-foreground hover:text-destructive-DEFAULT')} data-tooltip="Bad response">
+                            <Button variant="ghost" size="sm" onClick={() => onFeedback(message.id, 'negative')} disabled={message.feedback === 'negative'} className={cn("h-auto p-1", message.feedback === 'negative' ? 'text-destructive' : 'text-muted-foreground hover:text-destructive')} data-tooltip="Bad response">
                                 <ThumbsDownIcon className="w-4 h-4" />
                             </Button>
                         </div>

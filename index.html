@@ -367,6 +367,74 @@
             opacity: 0.15;
             filter: grayscale(1);
         }
+
+        .typing-cursor::after {
+            content: '▋';
+            @apply ml-1 animate-blink;
+        }
+
+        /* Agent Thought Styles */
+        .thoughts-terminal { @apply bg-black font-mono text-[#C9D1D9]; }
+        .thoughts-blueprint {
+            @apply bg-[#0a2a54] font-mono text-[#a2c6ff];
+            background-image:
+                linear-gradient(rgba(162,198,255,0.2) 1px, transparent 1px),
+                linear-gradient(to right, rgba(162,198,255,0.2) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        .thoughts-handwritten { @apply bg-[#fdfaf2] text-[#3a352f] dark:bg-[#3a352f] dark:text-[#fdfaf2] italic; font-family: 'Georgia', serif; }
+        .thoughts-code-comment { @apply bg-transparent; }
+        .thoughts-code-comment-content::before { content: '/*'; @apply mr-2 opacity-50; }
+        .thoughts-code-comment-content::after { content: '*/'; @apply ml-2 opacity-50; }
+        .thoughts-matrix { @apply bg-black font-mono text-green-400; text-shadow: 0 0 5px rgba(50, 255, 50, 0.7); }
+        .thoughts-scroll { @apply bg-[#e7d8c5] dark:bg-[#5C4033] text-[#5C4033] dark:text-[#d4c3b4]; font-family: 'Georgia', serif; border: 2px solid #c9b7a2; box-shadow: 2px 2px 8px rgba(0,0,0,0.2); }
+        .thoughts-notebook {
+            @apply bg-white text-black dark:bg-[#222] dark:text-white;
+            background-image:
+              linear-gradient(to bottom, transparent 95%, hsl(var(--dv-blue)/0.4) 95%),
+              linear-gradient(to right, transparent 50px, hsl(var(--dv-pink)/0.4) 50px, hsl(var(--dv-pink)/0.4) 51px, transparent 51px);
+            background-size: 100% 20px, 100% 100%;
+            line-height: 20px;
+        }
+        .thoughts-gradient-glow {
+            @apply bg-gray-900;
+            background-image: linear-gradient(125deg, hsl(var(--dv-purple)), hsl(var(--dv-pink)), hsl(var(--dv-blue)));
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: text-gradient 8s linear infinite;
+        }
+        .thoughts-scientific-journal { @apply bg-[#faf8f2] text-[#444] dark:bg-[#1a1d2c] dark:text-[#ccc]; font-family: 'Times New Roman', Times, serif; }
+        .thoughts-redacted { @apply bg-black text-white font-mono uppercase; }
+        .thoughts-redacted .redacted-text { @apply bg-white text-white; }
+        
+        /* Workflow Visualizer Styles */
+        .workflow-step { @apply flex items-start p-3 rounded-lg transition-all duration-300; }
+        .workflow-step.in-progress { @apply bg-primary/10; }
+        .workflow-step.completed { @apply opacity-80; }
+        .workflow-step-clickable { @apply cursor-pointer hover:bg-primary/5; }
+        .workflow-output-preview { @apply mt-2 p-2 bg-background/50 rounded-md border text-xs; }
+        .workflow-timeline-item { @apply relative pl-10; }
+        .workflow-timeline-item::before { @apply content-[''] absolute left-4 top-5 w-0.5 h-full bg-border; }
+        .workflow-timeline-item:last-child::before { @apply h-0; }
+        .workflow-timeline-status { @apply absolute left-0 top-1.5 w-9 h-9 rounded-full flex items-center justify-center border-4; }
+        .workflow-timeline-status.pending { @apply bg-secondary border-secondary; }
+        .workflow-timeline-status.in-progress { @apply bg-primary/10 border-primary/50; }
+        .workflow-timeline-status.completed { @apply bg-success/10 border-success/50; }
+
+        .workflow-stepper { @apply flex items-center; }
+        .workflow-stepper-item { @apply flex-1 flex items-center relative; }
+        .workflow-stepper-connector { @apply flex-1 h-0.5 mx-4 bg-border relative overflow-hidden; }
+        .workflow-stepper-connector-fill { @apply absolute top-0 left-0 h-full bg-success; }
+        .workflow-stepper-status { @apply w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors duration-300; }
+        .workflow-stepper-status.pending { @apply bg-secondary border-border text-muted-foreground; }
+        .workflow-stepper-status.in-progress { @apply bg-primary/10 border-primary text-primary animate-pulse; }
+        .workflow-stepper-status.completed { @apply bg-success/10 border-success text-success; }
+
+        .workflow-log { @apply bg-black font-mono text-sm text-gray-300 p-4 rounded-lg; }
+        .workflow-log-line .status-completed { @apply text-green-400; }
+        .workflow-log-line .status-in-progress { @apply text-blue-400; }
+        .workflow-log-line .status-pending { @apply text-gray-500; }
       }
     </style>
     <script type="importmap">

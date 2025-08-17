@@ -1,7 +1,7 @@
 import React, { createContext, useState, useEffect, ReactNode, useContext } from 'react';
 
-export type AgentThoughtsStyle = 'default' | 'terminal' | 'blueprint' | 'handwritten' | 'code-comment' | 'matrix' | 'scroll';
-export type WorkflowVisualType = 'simple' | 'detailed';
+export type AgentThoughtsStyle = 'default' | 'terminal' | 'blueprint' | 'handwritten' | 'code-comment' | 'matrix' | 'scroll' | 'notebook' | 'gradient-glow' | 'scientific-journal' | 'redacted';
+export type WorkflowVisualType = 'simple-list' | 'detailed-card' | 'timeline' | 'metro-grid' | 'stepped-process' | 'minimalist-log';
 export type Theme = 'light' | 'dark';
 
 interface Settings {
@@ -20,7 +20,7 @@ const SETTINGS_STORAGE_KEY = 'devkit-ai-pro-settings';
 
 const defaultSettings: Settings = {
   agentThoughtsStyle: 'default',
-  workflowVisual: 'simple',
+  workflowVisual: 'simple-list',
   isCacheEnabled: true,
   theme: 'dark',
 };

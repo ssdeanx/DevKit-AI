@@ -16,6 +16,7 @@ import { useStreamingOperation } from '../hooks/useStreamingOperation';
 import EmptyState from '../components/EmptyState';
 import RepoStatusIndicator from '../components/RepoStatusIndicator';
 import { cacheService } from '../services/cache.service';
+import GenerationInProgress from '../components/GenerationInProgress';
 
 const ReadmeView: React.FC = () => {
   const [description, setDescription] = useState('');
@@ -42,7 +43,7 @@ const ReadmeView: React.FC = () => {
             console.log("ReadmeView: Using cached version.");
             // Create a fake stream for cached content
             const stream = async function*() {
-                yield { type: 'content' as const, content: cached };
+                yield { type: 'content' as const, content: cached, agentName: ReadmeAgent.name };
             }();
             return { agent: ReadmeAgent, stream };
         }
@@ -109,16 +110,6 @@ const ReadmeView: React.FC = () => {
                     </Button>
                 </CardContent>
             </Card>
-            {generateReadmeOperation.thoughts && (
-                <Card className="bg-muted/50 animate-in fade-in">
-                    <CardHeader>
-                        <CardTitle className="text-base flex items-center gap-2"><BrainIcon className="w-4 h-4"/> Agent Thoughts</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-xs text-muted-foreground whitespace-pre-wrap font-mono">{generateReadmeOperation.thoughts}</p>
-                    </CardContent>
-                </Card>
-            )}
         </div>
 
         {/* Canvas */}
@@ -131,7 +122,11 @@ const ReadmeView: React.FC = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-6 relative z-10">
-                {!generateReadmeOperation.content && !generateReadmeOperation.isLoading && (
+                 {generateReadmeOperation.isLoading ? (
+                    <GenerationInProgress agentName={generateReadmeOperation.agentName} thoughts={generateReadmeOperation.thoughts} />
+                 ) : generateReadmeOperation.content ? (
+                    <MarkdownRenderer content={generateReadmeOperation.content} />
+                ) : (
                   <div className="h-full flex items-center justify-center">
                     <EmptyState
                         icon={<DocumentIcon className="w-12 h-12" />}
@@ -140,19 +135,7 @@ const ReadmeView: React.FC = () => {
                     />
                   </div>
                 )}
-                
-                {generateReadmeOperation.content && (
-                    <MarkdownRenderer content={generateReadmeOperation.content} />
-                )}
             </div>
-            
-            {generateReadmeOperation.isLoading && (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in">
-                    <SparklesIcon className="w-12 h-12 text-primary animate-pulse" />
-                    <h3 className="text-xl font-semibold mt-4">Generating Document...</h3>
-                    <p className="text-muted-foreground mt-1">The `ReadmeAgent` is crafting your file.</p>
-                </div>
-            )}
         </div>
       </div>
     </div>

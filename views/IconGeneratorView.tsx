@@ -19,6 +19,7 @@ import EmptyState from '../components/EmptyState';
 import { cn } from '../lib/utils';
 import { useStreamingOperation } from '../hooks/useStreamingOperation';
 import { Content, Part } from '@google/genai';
+import GenerationInProgress from '../components/GenerationInProgress';
 
 type AspectRatio = "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
 
@@ -186,9 +187,11 @@ const IconGeneratorView: React.FC = () => {
            </div>
            
            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 relative z-10">
-              {generationError && <div className="text-destructive bg-destructive/10 p-4 rounded-lg text-center">{generationError}</div>}
-              
-              {generatedImages && generatedImages.length > 0 && (
+              {isGenerating ? (
+                <GenerationInProgress agentName="Imagen 3 Model" />
+              ) : generationError ? (
+                 <div className="text-destructive bg-destructive/10 p-4 rounded-lg text-center">{generationError}</div>
+              ) : generatedImages && generatedImages.length > 0 ? (
                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {generatedImages.map((img, index) => (
                     <div key={index} className="group relative overflow-hidden card-glow-border">
@@ -207,9 +210,7 @@ const IconGeneratorView: React.FC = () => {
                     </div>
                   ))}
                 </div>
-              )}
-
-              {!isGenerating && !generatedImages && !generationError && (
+              ) : (
                  <div className="h-full flex items-center justify-center">
                     <EmptyState
                         icon={<ImageIcon className="w-10 h-10" />}
@@ -219,14 +220,6 @@ const IconGeneratorView: React.FC = () => {
                  </div>
               )}
             </div>
-
-            {isGenerating && (
-                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in">
-                    <SparklesIcon className="w-12 h-12 text-primary animate-pulse" />
-                    <h3 className="text-xl font-semibold mt-4">Generating Images...</h3>
-                    <p className="text-muted-foreground mt-1">The Imagen 3 model is creating your assets.</p>
-                </div>
-            )}
         </div>
       </div>
       

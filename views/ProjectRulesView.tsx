@@ -16,6 +16,7 @@ import ViewHeader from '../components/ViewHeader';
 import RepoStatusIndicator from '../components/RepoStatusIndicator';
 import EmptyState from '../components/EmptyState';
 import { useStreamingOperation } from '../hooks/useStreamingOperation';
+import GenerationInProgress from '../components/GenerationInProgress';
 
 const ProjectRulesView: React.FC = () => {
   const [request, setRequest] = useState('');
@@ -33,7 +34,7 @@ const ProjectRulesView: React.FC = () => {
       if (cachedDoc) {
         console.log(`ProjectRulesView: Loading doc from cache for key: ${cacheKey}`);
         const stream = async function*() {
-            yield { type: 'content' as const, content: cachedDoc };
+            yield { type: 'content' as const, content: cachedDoc, agentName: ProjectRulesAgent.name };
         }();
         return { agent: ProjectRulesAgent, stream };
       }
@@ -95,16 +96,6 @@ const ProjectRulesView: React.FC = () => {
                     </Button>
                 </CardContent>
             </Card>
-            {generateDocOperation.thoughts && (
-                <Card className="bg-muted/50 animate-in fade-in">
-                    <CardHeader>
-                        <CardTitle className="text-base flex items-center gap-2"><BrainIcon className="w-4 h-4"/> Agent Thoughts</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-xs text-muted-foreground whitespace-pre-wrap font-mono">{generateDocOperation.thoughts}</p>
-                    </CardContent>
-                </Card>
-            )}
         </div>
         
         {/* Canvas */}
@@ -117,7 +108,11 @@ const ProjectRulesView: React.FC = () => {
             </div>
             
              <div className="flex-1 overflow-y-auto custom-scrollbar p-6 relative z-10">
-                {!generateDocOperation.content && !generateDocOperation.isLoading && (
+                {generateDocOperation.isLoading ? (
+                    <GenerationInProgress agentName={generateDocOperation.agentName} thoughts={generateDocOperation.thoughts} />
+                ) : generateDocOperation.content ? (
+                    <MarkdownRenderer content={generateDocOperation.content} />
+                ) : (
                     <div className="h-full flex items-center justify-center">
                         <EmptyState
                             icon={<DocumentIcon className="w-12 h-12" />}
@@ -126,18 +121,7 @@ const ProjectRulesView: React.FC = () => {
                         />
                     </div>
                 )}
-                {generateDocOperation.content && (
-                    <MarkdownRenderer content={generateDocOperation.content} />
-                )}
             </div>
-            
-            {generateDocOperation.isLoading && (
-                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in">
-                    <SparklesIcon className="w-12 h-12 text-primary animate-pulse" />
-                    <h3 className="text-xl font-semibold mt-4">Generating Constitution...</h3>
-                    <p className="text-muted-foreground mt-1">The `ProjectRulesAgent` is analyzing your codebase.</p>
-                </div>
-            )}
         </div>
       </div>
     </div>

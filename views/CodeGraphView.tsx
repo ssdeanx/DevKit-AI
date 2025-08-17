@@ -35,6 +35,7 @@ import ViewHeader from '../components/ViewHeader';
 import { Input } from '../components/ui/Input';
 import { useStreamingOperation } from '../hooks/useStreamingOperation';
 import { Button } from '../components/ui/Button';
+import GenerationInProgress from '../components/GenerationInProgress';
 
 const getNodeColor = (type?: string) => {
     switch (type) {
@@ -191,6 +192,7 @@ const Graph: React.FC<{ rawNodes: Node[], rawEdges: Edge[] }> = ({ rawNodes, raw
         >
             <Background variant={BackgroundVariant.Dots} gap={24} size={1} />
             <Controls />
+            <MiniMap nodeColor={n => getNodeColor(n.data.type)} nodeStrokeWidth={3} zoomable pannable />
             <Panel position="top-right" className="p-0 m-2">
                 <Card className="glass-effect w-64">
                     <CardContent className="p-2">
@@ -226,7 +228,7 @@ const CodeGraphView: React.FC = () => {
       if (cached) {
         console.log("CodeGraphView: Using cached version.");
         const stream = async function*() {
-            yield { type: 'content' as const, content: cached };
+            yield { type: 'content' as const, content: cached, agentName: CodeGraphAgent.name };
         }();
         return { agent: CodeGraphAgent, stream };
       }
@@ -268,28 +270,14 @@ const CodeGraphView: React.FC = () => {
           {repoUrl && <Button onClick={generateGraphOperation.execute} disabled={generateGraphOperation.isLoading} variant="outline">Regenerate</Button>}
         </ViewHeader>
         <div className="flex-1 flex overflow-hidden">
-            {generateGraphOperation.thoughts && (
-                 <div className="w-1/4 p-4 border-r overflow-y-auto custom-scrollbar">
-                     <Card className="bg-muted/50 h-full">
-                        <CardHeader>
-                            <CardTitle className="text-base flex items-center gap-2"><BrainIcon className="w-4 h-4"/> Agent Thoughts</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-xs text-muted-foreground whitespace-pre-wrap font-mono">{generateGraphOperation.thoughts}</p>
-                        </CardContent>
-                    </Card>
-                 </div>
-            )}
             <div className="flex-1 relative">
                 {generateGraphOperation.isLoading && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-20 animate-in">
-                        <LoaderIcon className="w-12 h-12 text-primary animate-spin" />
-                        <h2 className="text-xl font-semibold mt-6 text-foreground">Generating Code Graph...</h2>
-                        <p className="text-muted-foreground mt-2">The AI architect is analyzing your repository.</p>
+                    <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-10">
+                        <GenerationInProgress agentName={generateGraphOperation.agentName} thoughts={generateGraphOperation.thoughts} />
                     </div>
                 )}
 
-                {!repoUrl && (
+                {!repoUrl && !generateGraphOperation.isLoading && (
                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
                         <EmptyState
                             icon={<CodeGraphIcon className="w-12 h-12 text-foreground" />}
@@ -299,7 +287,7 @@ const CodeGraphView: React.FC = () => {
                     </div>
                 )}
                 
-                {graphData && (
+                {graphData && !generateGraphOperation.isLoading && (
                      <ReactFlowProvider>
                         <Graph rawNodes={graphData.nodes} rawEdges={graphData.edges} />
                     </ReactFlowProvider>

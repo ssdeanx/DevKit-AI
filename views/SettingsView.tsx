@@ -8,14 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Label } from '../components/ui/Label';
 import { Slider } from '../components/ui/Slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/Tabs';
-import { useSettings, AgentThoughtsStyle } from '../context/SettingsContext';
+import { useSettings, AgentThoughtsStyle, WorkflowVisualType } from '../context/SettingsContext';
 import { Textarea } from '../components/ui/Textarea';
 import { Switch } from '../components/ui/Switch'; 
 import { cn } from '../lib/utils';
 import { cacheService } from '../services/cache.service';
 import { Button } from '../components/ui/Button';
 import ViewHeader from '../components/ViewHeader';
-import { SettingsIcon } from '../components/icons';
+import { SettingsIcon, CheckCircleIcon, WorkflowIcon, BotIcon } from '../components/icons';
 import { agentMemoryService } from '../services/agent-memory.service';
 import { useToast } from '../context/ToastContext';
 
@@ -255,6 +255,19 @@ const SettingsView: React.FC = () => {
     { id: 'code-comment', label: 'Code Comment' },
     { id: 'matrix', label: 'Matrix' },
     { id: 'scroll', label: 'Scroll' },
+    { id: 'notebook', label: 'Notebook' },
+    { id: 'gradient-glow', label: 'Gradient Glow' },
+    { id: 'scientific-journal', label: 'Scientific' },
+    { id: 'redacted', label: 'Redacted' },
+  ];
+  
+  const workflowStyles: { id: WorkflowVisualType; label: string; preview: React.ReactNode }[] = [
+    { id: 'simple-list', label: 'Simple List', preview: <div className="text-xs space-y-1"><p className="flex items-center"><CheckCircleIcon className="w-3 h-3 mr-1 text-success"/>Agent 1</p><p className="flex items-center"><BotIcon className="w-3 h-3 mr-1"/>Agent 2</p></div> },
+    { id: 'detailed-card', label: 'Detailed Card', preview: <div className="text-xs p-1 rounded-md bg-secondary border"><p className="font-bold">Agent 1</p><p className="opacity-70">Task...</p></div> },
+    { id: 'timeline', label: 'Timeline', preview: <div className="text-xs relative"><div className="absolute left-1 top-1 h-full w-0.5 bg-border"></div><div className="relative pl-3"><div className="absolute -left-0.5 top-0.5 w-2 h-2 rounded-full bg-success"></div>Agent 1</div><div className="relative pl-3 mt-1"><div className="absolute -left-0.5 top-0.5 w-2 h-2 rounded-full bg-primary"></div>Agent 2</div></div> },
+    { id: 'metro-grid', label: 'Metro Grid', preview: <div className="grid grid-cols-2 gap-1 w-full h-full">{Array(4).fill(0).map((_,i) => <div key={i} className={cn("rounded-sm", i === 0 ? "bg-success/50" : i === 1 ? "bg-primary/50" : "bg-border")}></div>)}</div> },
+    { id: 'stepped-process', label: 'Stepped Process', preview: <div className="flex items-center w-full"><div className="w-3 h-3 rounded-full bg-success"></div><div className="flex-1 h-0.5 bg-border mx-1"></div><div className="w-3 h-3 rounded-full bg-primary"></div><div className="flex-1 h-0.5 bg-border mx-1"></div><div className="w-3 h-3 rounded-full bg-border"></div></div> },
+    { id: 'minimalist-log', label: 'Minimalist Log', preview: <div className="text-left font-mono text-[10px] leading-tight"><p><span className="text-green-500">[OK]</span> Agent 1</p><p><span className="text-blue-500">[RUN]</span> Agent 2</p><p><span className="opacity-50">[...]</span> Agent 3</p></div> },
   ];
 
   const handleClearCache = async () => {
@@ -276,9 +289,9 @@ const SettingsView: React.FC = () => {
         description="Fine-tune general settings and parameters for each AI agent."
       />
 
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
         <Tabs defaultValue="general">
-          <TabsList className="flex-wrap h-auto justify-start">
+          <TabsList className="flex-wrap h-auto justify-start sticky top-0 bg-background/80 backdrop-blur-sm z-10">
             <TabsTrigger value="general">General</TabsTrigger>
             {agents.map(agent => (
                 <TabsTrigger key={agent.id} value={agent.id}>{agent.name}</TabsTrigger>
@@ -312,17 +325,16 @@ const SettingsView: React.FC = () => {
                                         style.id === 'code-comment' && 'thoughts-code-comment',
                                         style.id === 'matrix' && 'thoughts-matrix',
                                         style.id === 'scroll' && 'thoughts-scroll',
+                                        style.id === 'notebook' && 'thoughts-notebook',
+                                        style.id === 'gradient-glow' && 'thoughts-gradient-glow',
+                                        style.id === 'scientific-journal' && 'thoughts-scientific-journal',
+                                        style.id === 'redacted' && 'thoughts-redacted',
                                      )}>
                                         <p className={cn(
                                             'break-all',
-                                            style.id === 'terminal' && 'text-green-400',
-                                            style.id === 'blueprint' && 'text-blue-200',
-                                            style.id === 'handwritten' && 'text-stone-800 dark:text-stone-300',
                                             style.id === 'code-comment' && 'thoughts-code-comment-content',
-                                            style.id === 'matrix' && 'text-green-400',
-                                            style.id === 'scroll' && 'text-[#5C4033] dark:text-[#d4c3b4]',
                                         )}>
-                                            Agent thoughts...
+                                            {style.id === 'redacted' ? 'TOP SECRET <span class="redacted-text">AGENT</span> THOUGHTS' : 'Agent thoughts...'}
                                         </p>
                                      </div>
                                      <p className="text-center text-sm font-medium mt-2">{style.label}</p>
@@ -331,6 +343,27 @@ const SettingsView: React.FC = () => {
                         </div>
                     </div>
                     
+                    <div className="border-t pt-6 space-y-4">
+                        <Label>Workflow Visual Style</Label>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {workflowStyles.map(style => (
+                                <div
+                                    key={style.id}
+                                    onClick={() => setSettings({ ...settings, workflowVisual: style.id })}
+                                    className={cn(
+                                        "p-2 rounded-lg border-2 cursor-pointer transition-all card-interactive",
+                                        settings.workflowVisual === style.id ? 'border-primary shadow-lg scale-105' : 'border-border hover:border-primary/50'
+                                    )}
+                                >
+                                    <div className="p-2 rounded-md h-20 flex items-center justify-center overflow-hidden bg-muted/50">
+                                       {style.preview}
+                                    </div>
+                                    <p className="text-center text-sm font-medium mt-2">{style.label}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
                     <div className="border-t pt-6">
                         <h3 className="text-lg font-medium text-foreground mb-2">Data Management</h3>
                         <p className="text-sm text-muted-foreground mb-4">

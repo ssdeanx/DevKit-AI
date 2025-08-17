@@ -1,4 +1,5 @@
 
+
 import { useState, useCallback } from 'react';
 import { useToast } from '../context/ToastContext';
 import { Agent, AgentExecuteStream } from '../agents/types';
@@ -8,6 +9,7 @@ interface StreamingOperation<P extends any[]> {
   content: string;
   isLoading: boolean;
   error: string | null;
+  agentName: string;
   execute: (...params: P) => Promise<void>;
   reset: () => void;
 }
@@ -19,6 +21,7 @@ export function useStreamingOperation<P extends any[]>(
   const [content, setContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agentName, setAgentName] = useState('');
   const { toast } = useToast();
 
   const execute = useCallback(async (...params: P) => {
@@ -26,9 +29,11 @@ export function useStreamingOperation<P extends any[]>(
     setError(null);
     setThoughts('');
     setContent('');
+    setAgentName('');
 
     try {
-      const { stream } = await executeFunction(...params);
+      const { agent, stream } = await executeFunction(...params);
+      setAgentName(agent.name);
       
       for await (const chunk of stream) {
         if (chunk.type === 'thought') {
@@ -52,7 +57,8 @@ export function useStreamingOperation<P extends any[]>(
     setContent('');
     setIsLoading(false);
     setError(null);
+    setAgentName('');
   }, []);
 
-  return { thoughts, content, isLoading, error, execute, reset };
+  return { thoughts, content, isLoading, error, agentName, execute, reset };
 }

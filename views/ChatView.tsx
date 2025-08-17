@@ -199,7 +199,7 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
             supervisor.commitSessionToLongTermMemory(finalAgentName);
         }
         if (workflowPlan) {
-            setTimeout(() => setWorkflowPlan(null), 3000);
+            setTimeout(() => setWorkflowPlan(null), 5000);
         }
     }
   };
