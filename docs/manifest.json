@@ -1,8 +1,7 @@
-
 {
     "title": "DevKit AI Pro Documentation",
-    "version": "1.4.0",
-    "lastUpdated": "2025-08-18",
+    "version": "1.5.0",
+    "lastUpdated": "2025-08-19",
     "sections": [
         {
             "title": "Fundamentals",
@@ -24,6 +23,7 @@
         {
             "title": "GitHub Pro",
             "pages": [
+                 { "path": "docs/12-pull-request-reviewer.md", "title": "PR Reviewer", "subtitle": "Deep dive on AI reviews." },
                  { "path": "docs/13-github-pro-tools.md", "title": "GitHub Pro Tools", "subtitle": "PR Reviewer & Issue Labeler" }
             ]
         },
@@ -33,7 +33,8 @@
                 { "path": "docs/08-best-practices.md", "title": "Best Practices", "subtitle": "Tips for effective use." },
                 { "path": "docs/09-architecture-overview.md", "title": "Architecture Overview", "subtitle": "A technical deep-dive." },
                 { "path": "docs/10-whats-new.md", "title": "What's New?", "subtitle": "Changelog and updates." },
-                { "path": "docs/11-troubleshooting.md", "title": "Troubleshooting & FAQ", "subtitle": "Common questions answered." }
+                { "path": "docs/11-troubleshooting.md", "title": "Troubleshooting & FAQ", "subtitle": "Common questions answered." },
+                { "path": "docs/14-workflow-token-tracking.md", "title": "Workflow Token Tracking", "subtitle": "See token usage per agent step." }
             ]
         }
     ]

@@ -1,4 +1,5 @@
 
+
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part, Content } from '@google/genai';
@@ -108,6 +109,10 @@ export const ReadmeAgent: Agent = {
 
             if (candidate.groundingMetadata) {
                 yield { type: 'metadata', metadata: { groundingMetadata: candidate.groundingMetadata }, agentName: this.name };
+            }
+
+            if (chunk.usageMetadata) {
+                yield { type: 'usageMetadata', usage: chunk.usageMetadata, agentName: this.name };
             }
         }
     }

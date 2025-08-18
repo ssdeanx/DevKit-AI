@@ -1,4 +1,5 @@
 
+
 import { GenerateContentParameters, FunctionCall, Part, GroundingMetadata, Content } from '@google/genai';
 import { WorkflowStep } from '../App';
 
@@ -10,12 +11,21 @@ export interface WorkflowPlan {
     plan: WorkflowStep[];
 }
 
+export interface TokenUsage {
+  promptTokenCount?: number;
+  candidatesTokenCount?: number;
+  totalTokenCount?: number;
+  thoughtsTokenCount?: number;
+}
+
 export type AgentExecuteStreamChunk = 
+    | { type: 'runStart', runId: string, agentName?: string }
     | { type: 'thought', content: string, agentName?: string }
     | { type: 'content', content: string, agentName?: string }
     | { type: 'functionCall', functionCall: FunctionCall, agentName?: string }
     | { type: 'workflowUpdate', plan: WorkflowStep[], agentName?: string }
-    | { type: 'metadata', metadata: { groundingMetadata: GroundingMetadata }, agentName?: string };
+    | { type: 'metadata', metadata: { groundingMetadata: GroundingMetadata }, agentName?: string }
+    | { type: 'usageMetadata', usage: TokenUsage, agentName?: string };
 
 
 export type AgentExecuteStream = AsyncGenerator<AgentExecuteStreamChunk, void, unknown>;

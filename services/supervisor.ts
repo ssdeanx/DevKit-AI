@@ -1,5 +1,7 @@
+
+
 import { orchestrator } from './orchestrator';
-import { Agent, AgentExecuteStream, WorkflowPlan } from '../agents/types';
+import { Agent, AgentExecuteStream, WorkflowPlan, TokenUsage } from '../agents/types';
 import { agentService } from './agent.service';
 import { FileNode, StagedFile, githubService } from './github.service';
 import { ViewName, WorkflowStep } from '../App';
@@ -9,6 +11,8 @@ import { agentMemoryService } from './agent-memory.service';
 import { cleanText } from '../lib/text';
 import { shortTermMemoryService } from './short-term-memory.service';
 import { MemoryAgent } from '../agents/MemoryAgent';
+import { agentPerformanceService } from './agent-performance.service';
+import { v4 as uuidv4 } from 'uuid';
 
 interface FullGitContext {
     fileTree: FileNode[] | null;
@@ -201,6 +205,44 @@ Analyze this feedback carefully to improve your response and avoid the previous 
     }
   }
 
+  private _calculateEfficiencyScore(prompt: string, tokens: TokenUsage): number {
+    const promptLength = prompt.length;
+    const totalTokens = tokens.totalTokenCount ?? 0;
+
+    if (totalTokens === 0) return 0.5;
+
+    const efficiencyRatio = promptLength / totalTokens;
+    const squashedRating = (Math.atan(efficiencyRatio - 1) / Math.PI) + 0.5;
+    return Math.max(0.1, Math.min(1.0, squashedRating));
+  }
+
+  private _calculateQualityScore(output: string, agent: Agent): number {
+    let score = 1.0;
+    const lowerOutput = output.toLowerCase();
+
+    // Penalize for common failure indicators
+    if (lowerOutput.includes("error") || lowerOutput.includes("failed") || lowerOutput.includes("unable to")) {
+        score *= 0.7;
+    }
+    if (output.length < 50 && (lowerOutput.includes("i can't") || lowerOutput.includes("i cannot"))) {
+        score *= 0.4;
+    }
+    if (output.trim().length === 0) {
+        return 0.1; // Very low score for empty output
+    }
+
+    // Check for format adherence if a schema is present
+    if (agent.config.config?.responseMimeType === "application/json") {
+        try {
+            JSON.parse(output.replace(/```json|```/g, '').trim());
+        } catch (e) {
+            score = 0.1; // Drastic penalty for invalid JSON when JSON is expected
+        }
+    }
+
+    return Math.max(0.1, score);
+  }
+
   private async *executePlan(
     planner: Agent,
     contents: Content[],
@@ -208,213 +250,161 @@ Analyze this feedback carefully to improve your response and avoid the previous 
     baseContextParts: Part[],
     originalUserPrompt: string,
   ): AgentExecuteStream {
-    // Step 1: Get the plan from the PlannerAgent
-    console.log("Supervisor (Plan): Requesting plan from PlannerAgent.");
+    const runId = uuidv4();
+    yield { type: 'runStart', runId, agentName: planner.name };
+
     const planStream = planner.execute(contents);
     let planJsonString = '';
+    let plannerUsage: TokenUsage | null = null;
+    let finalContent = '';
+    
     for await (const chunk of planStream) {
-        if (chunk.type === 'content') {
-            planJsonString += chunk.content.replace(/```json|```/g, '').trim();
-        }
-        // Yield thoughts from the planner
-        yield { ...chunk, agentName: planner.name };
+        if (chunk.type === 'content') planJsonString += chunk.content.replace(/```json|```/g, '').trim();
+        if (chunk.type === 'usageMetadata') plannerUsage = chunk.usage;
+        yield chunk; // Pass through all chunks
+    }
+
+    if (plannerUsage) {
+        const qualityScore = this._calculateQualityScore(planJsonString, planner);
+        const efficiencyScore = this._calculateEfficiencyScore(originalUserPrompt, plannerUsage);
+        agentPerformanceService.addRecord(planner.id, runId, originalUserPrompt, plannerUsage, efficiencyScore, qualityScore);
     }
 
     let parsedPlan: WorkflowPlan;
     try {
         parsedPlan = JSON.parse(planJsonString);
-        if (!parsedPlan.plan || !Array.isArray(parsedPlan.plan)) {
-            throw new Error("Invalid plan structure");
-        }
-         console.log("Supervisor (Plan): Parsed plan successfully:", parsedPlan.plan);
+        if (!parsedPlan.plan || !Array.isArray(parsedPlan.plan)) throw new Error("Invalid plan structure");
+        console.log("Supervisor (Plan): Parsed plan successfully:", parsedPlan.plan);
     } catch (e) {
-        console.error("Supervisor (Plan): Failed to parse plan JSON. Raw string:", planJsonString, "Error:", e);
+        console.error("Supervisor (Plan): Failed to parse plan JSON.", e);
         yield { type: 'content', content: "I couldn't create a valid plan. Please try rephrasing your request." };
         return;
     }
     
     const allAgents = agentService.getAgents();
-    let executionContext = ''; // This will hold the output of the previous step
+    let executionContext = '';
     const workflowSteps: WorkflowStep[] = parsedPlan.plan.map(p => ({ ...p, status: 'pending' }));
     
-    // Step 2: Execute the plan
     for (const step of parsedPlan.plan) {
-        let stepSucceeded = true;
-        let stepOutput = '';
-        
-        console.log(`Supervisor (Plan): Executing step ${step.step}: Agent: ${step.agent}, Task: "${step.task}"`);
         const currentStepIndex = workflowSteps.findIndex(ws => ws.step === step.step);
         workflowSteps[currentStepIndex].status = 'in-progress';
         yield { type: 'workflowUpdate', plan: [...workflowSteps] };
-
+        
         const agentToExecute = allAgents.find(a => a.name === step.agent);
         if (!agentToExecute) {
-            console.error(`Supervisor (Plan): Agent ${step.agent} not found in plan.`);
-            stepOutput = `\nError: Agent ${step.agent} not found. Skipping step.`;
-            stepSucceeded = false;
+            const errorMsg = `\nError: Agent ${step.agent} not found. Skipping step.`;
+            executionContext += errorMsg;
+            workflowSteps[currentStepIndex].status = 'completed';
+            workflowSteps[currentStepIndex].output = errorMsg;
         } else {
-            const subAgentPromptText = `<PLAN_CONTEXT>
-You are one step in a multi-agent plan to address a user's request. Your work is crucial for the success of the overall plan.
-<ORIGINAL_USER_REQUEST>
-${originalUserPrompt}
-</ORIGINAL_USER_REQUEST>
-<CURRENT_TASK>
-Your current task is: "${step.task}"
-</CURRENT_TASK>
-${executionContext ? `<PREVIOUS_STEP_OUTPUT>
-The output from the previous step is provided below. Use it to inform your work.
-${executionContext}
-</PREVIOUS_STEP_OUTPUT>` : '<INFO>This is the first step, so there is no previous context.</INFO>'}
-</PLAN_CONTEXT>
-Please perform your task and provide the output.`;
+            const subAgentPromptText = `<PLAN_CONTEXT>...Your task is: "${step.task}"...${executionContext}</PLAN_CONTEXT>`;
+            const subAgentContents: Content[] = [{ role: 'user', parts: [...baseContextParts, { text: subAgentPromptText }] }];
             
-            const subAgentPromptParts: Part[] = [...baseContextParts, { text: subAgentPromptText }];
-            const subAgentContents: Content[] = [{ role: 'user', parts: subAgentPromptParts }];
+            let stepOutput = '';
+            let stepUsage: TokenUsage = {};
+            const stepRunId = uuidv4();
 
-            try {
-                const agentStream = this.executeAgentWithFunctionCalling(agentToExecute, subAgentContents, callbacks);
-                for await (const chunk of agentStream) {
-                    yield { ...chunk, agentName: agentToExecute.name };
-                    if (chunk.type === 'content') {
-                        stepOutput += chunk.content;
-                    }
-                }
-            } catch (error: any) {
-                console.error(`Supervisor (Plan): Error executing agent ${agentToExecute.name} for step ${step.step}. Error: ${error.message}`);
-                stepOutput = `Error during execution of ${agentToExecute.name}: ${error.message}`;
-                stepSucceeded = false;
+            const agentStream = this.executeAgentWithFunctionCalling(agentToExecute, subAgentContents, callbacks, stepRunId);
+            for await (const chunk of agentStream) {
+                if (chunk.type === 'content') stepOutput += chunk.content;
+                if (chunk.type === 'usageMetadata') stepUsage = { ...stepUsage, ...chunk.usage };
+                yield chunk;
             }
+            
+            executionContext += `\n--- Output from Step ${step.step} (${agentToExecute.name}) ---\n${stepOutput}`;
+            workflowSteps[currentStepIndex].status = 'completed';
+            workflowSteps[currentStepIndex].output = stepOutput;
+            workflowSteps[currentStepIndex].usage = stepUsage;
+
+            const qualityScore = this._calculateQualityScore(stepOutput, agentToExecute);
+            const efficiencyScore = this._calculateEfficiencyScore(step.task, stepUsage);
+            agentPerformanceService.addRecord(agentToExecute.id, stepRunId, step.task, stepUsage, efficiencyScore, qualityScore);
         }
         
-        // Update context for the next step
-        if (stepSucceeded) {
-            executionContext = `\n--- Output from Step ${step.step} (${agentToExecute?.name}) ---\n${stepOutput}`;
-        } else {
-            executionContext = `\n--- FAILED: Output from Step ${step.step} (${agentToExecute?.name}) ---\n${stepOutput}`;
-        }
-
-        workflowSteps[currentStepIndex].status = 'completed'; // Mark as completed even if failed, to move to next step.
-        workflowSteps[currentStepIndex].output = stepOutput;
-        console.log(`Supervisor (Plan): Step ${step.step} finished.`);
+        yield { type: 'workflowUpdate', plan: [...workflowSteps] };
     }
-
-     yield { type: 'workflowUpdate', plan: [...workflowSteps] };
   }
 
   private async *executeAgentWithFunctionCalling(
     agent: Agent,
     contents: Content[],
-    callbacks: { setActiveView: (view: ViewName) => void; }
+    callbacks: { setActiveView: (view: ViewName) => void; },
+    runId: string = uuidv4()
   ): AgentExecuteStream {
-    
+    yield { type: 'runStart', runId, agentName: agent.name };
+
     const history: Content[] = structuredClone(contents);
     const MAX_TURNS = 10;
     let currentTurn = 0;
-
+    let aggregatedUsage: TokenUsage = {};
+    let finalContent = '';
+    
     while (currentTurn < MAX_TURNS) {
         currentTurn++;
-        console.log(`Supervisor (FC): Turn ${currentTurn} for agent ${agent.name}.`);
-        
         const stream = agent.execute(history);
         let functionCall: FunctionCall | null = null;
-        let hasContent = false;
 
         for await (const chunk of stream) {
-            if (chunk.type === 'content' && chunk.content) hasContent = true;
-            if (chunk.type === 'functionCall' && chunk.functionCall) {
-                functionCall = chunk.functionCall;
-            }
-            // Pass all chunks through to the UI
             yield chunk;
+            if (chunk.type === 'content') finalContent += chunk.content;
+            if (chunk.type === 'functionCall') functionCall = chunk.functionCall;
+            if (chunk.type === 'usageMetadata' && chunk.usage) {
+                aggregatedUsage.promptTokenCount = (aggregatedUsage.promptTokenCount ?? 0) + (chunk.usage.promptTokenCount ?? 0);
+                aggregatedUsage.candidatesTokenCount = (aggregatedUsage.candidatesTokenCount ?? 0) + (chunk.usage.candidatesTokenCount ?? 0);
+                aggregatedUsage.totalTokenCount = (aggregatedUsage.totalTokenCount ?? 0) + (chunk.usage.totalTokenCount ?? 0);
+                aggregatedUsage.thoughtsTokenCount = (aggregatedUsage.thoughtsTokenCount ?? 0) + (chunk.usage.thoughtsTokenCount ?? 0);
+            }
         }
         
         if (functionCall) {
-            const toolName = functionCall.name;
-            const tool = availableTools[toolName];
-            let result;
-
-            if (tool) {
-                result = await tool(functionCall.args, callbacks, this.apiKey); // Pass apiKey to tool
-                console.log(`Supervisor (FC): Tool ${toolName} executed with result:`, result);
-            } else {
-                result = { error: `Tool ${toolName} not found.` };
-                console.error(`Supervisor (FC): Tool ${toolName} not found.`);
-            }
-            
-            // Add the tool call and its result to the history for the next turn
+            const tool = availableTools[functionCall.name];
+            const result = tool ? await tool(functionCall.args, callbacks, this.apiKey) : { error: `Tool ${functionCall.name} not found.` };
             history.push({ role: 'model', parts: [{ functionCall }] });
-            history.push({ role: 'tool', parts: [{ functionResponse: { name: toolName, response: result } }] });
-
+            history.push({ role: 'tool', parts: [{ functionResponse: { name: functionCall.name, response: result } }] });
         } else {
-             console.log(`Supervisor (FC): No more function calls for ${agent.name}. Ending loop.`);
             break;
         }
     }
-     if (currentTurn >= MAX_TURNS) {
-        console.error("Supervisor (FC): Function calling loop reached max turns. Breaking.");
-        yield { type: 'content', content: "Sorry, I seem to be stuck in a loop. Please try rephrasing your request.", agentName: agent.name };
+    
+    if (aggregatedUsage.totalTokenCount) {
+        const originalPrompt = contents[0]?.parts.map(p => 'text' in p ? p.text : '').join('\n') || '';
+        const qualityScore = this._calculateQualityScore(finalContent, agent);
+        const efficiencyScore = this._calculateEfficiencyScore(originalPrompt, aggregatedUsage);
+        agentPerformanceService.addRecord(agent.id, runId, originalPrompt, aggregatedUsage, efficiencyScore, qualityScore);
+        yield { type: 'usageMetadata', usage: aggregatedUsage, agentName: agent.name };
+    }
+
+    if (currentTurn >= MAX_TURNS) {
+        yield { type: 'content', content: "Sorry, I seem to be stuck in a loop. Please try rephrasing.", agentName: agent.name };
     }
   }
 
-  async recordFeedback(messageId: string, rating: 'positive' | 'negative', reason: string | null, agentName?: string) {
-    if (!agentName) {
-        console.warn("Supervisor: Cannot record feedback without an agent name.");
-        return;
-    }
-    const agent = agentService.getAgents().find(a => a.name === agentName);
-    if (!agent) {
-        console.error(`Supervisor: Agent ${agentName} not found for recording feedback.`);
-        return;
-    }
+  async recordFeedbackForRun(runId: string, rating: 'positive' | 'negative', reason: string | null) {
+      await agentPerformanceService.updateFeedback(runId, rating);
+      const record = await agentPerformanceService.getRecord(runId);
+      if (!record) return;
 
-    if (rating === 'negative' && reason) {
-        const feedbackMemory = `My previous response was rated negatively.
-User Feedback: "${reason}".
-I must learn from this. I will analyze the feedback and ensure my next response is improved and does not repeat the same mistake.`;
-        
-        await agentMemoryService.addMemory(agent.id, {
-            content: feedbackMemory,
-            type: 'feedback',
-        });
-        console.log(`Supervisor: Negative feedback recorded as a memory for ${agent.name}.`);
-    } else {
-        console.log(`Supervisor: Positive feedback recorded for ${agent.name}.`);
-    }
+      if (rating === 'negative' && reason) {
+          const feedbackMemory = `My previous response to prompt "${record.prompt}" was rated negatively. User Feedback: "${reason}". I must learn from this.`;
+          await agentMemoryService.addMemory(record.agentId, { content: feedbackMemory, type: 'feedback' });
+      }
   }
   
   private async _isMemoryNovel(agentId: string, potentialMemory: string): Promise<boolean> {
       const relevantMemories = await agentMemoryService.searchMemories(agentId, potentialMemory, 5);
-      if (relevantMemories.length === 0) {
-          return true; // No existing memories, so it's definitely novel.
-      }
+      if (relevantMemories.length === 0) return true;
 
-      const noveltyCheckPrompt = `[COMMAND: CHECK_NOVELTY]
-### Task
-Analyze the "New Potential Memory" and compare it against the "Existing Memories". Determine if the new memory adds significant, new information or if it is mostly redundant or a minor variation of what is already known.
-
-### New Potential Memory
-"${potentialMemory}"
-
-### Existing Memories
-${relevantMemories.map(m => `- ${m.content}`).join('\n')}
-
-### Your Response
-You MUST respond with a single, valid JSON object with the key "isNovel" (boolean) and an optional "reason" (string).
-`;
+      const noveltyCheckPrompt = `[COMMAND: CHECK_NOVELTY]...`;
       try {
           const memoryAgent = agentService.getAgents().find(a => a.id === MemoryAgent.id)!;
-          const contents: Content[] = [{ role: 'user', parts: [{ text: noveltyCheckPrompt }] }];
-          const stream = memoryAgent.execute(contents);
+          const stream = memoryAgent.execute([{ role: 'user', parts: [{ text: noveltyCheckPrompt }] }]);
           let responseJson = '';
-          for await (const chunk of stream) {
-              if (chunk.type === 'content') responseJson += chunk.content;
-          }
+          for await (const chunk of stream) if (chunk.type === 'content') responseJson += chunk.content;
           const result = JSON.parse(responseJson.replace(/```json|```/g, '').trim());
-          console.log(`Supervisor (Novelty Check): AI determined memory is ${result.isNovel ? 'NOVEL' : 'NOT NOVEL'}. Reason: ${result.reason}`);
           return result.isNovel;
       } catch (error) {
-          console.error("Supervisor (Novelty Check): Failed to determine memory novelty via AI. Defaulting to true.", error);
-          return true; // Fail safe: if the check fails, assume it's novel to avoid losing potentially good memories.
+          console.error("Supervisor (Novelty Check): Failed. Defaulting to true.", error);
+          return true;
       }
   }
 
@@ -423,52 +413,23 @@ You MUST respond with a single, valid JSON object with the key "isNovel" (boolea
     if (recentHistory.length < 2) return; 
 
     const agent = agentService.getAgents().find(a => a.id === agentId);
-    if (!agent) return;
+    if (!agent || !['ChatAgent', 'ResearchAgent', 'CodeExecutionAgent', 'RefinerAgent'].includes(agent.name)) return;
 
-    const canLearn = ['ChatAgent', 'ResearchAgent', 'CodeExecutionAgent', 'RefinerAgent'].includes(agent.name);
-    if (!canLearn) return;
-
-    console.log(`Supervisor: Starting LTM commit process for ${agent.name}.`);
-    
     const conversation = recentHistory.map(entry => `[${entry.author}]: ${entry.content}`).join('\n\n');
-    const summarizationPrompt = `[COMMAND: SUMMARIZE]
-### Task
-Analyze the following conversation history. Extract a single, concise, and important fact, user preference, or key takeaway that I (the AI) should remember for future interactions. The memory should be a statement from my perspective.
-
-### Conversation History
----
-${conversation}
----
-
-### Your Response
-You MUST respond with a single, valid JSON object with the key "summary" (string). If no significant new information was learned, return a summary that is null.`;
+    const summarizationPrompt = `[COMMAND: SUMMARIZE]...${conversation}...`;
     
     try {
         const memoryAgent = agentService.getAgents().find(a => a.id === MemoryAgent.id)!;
-        const contents: Content[] = [{ role: 'user', parts: [{ text: summarizationPrompt }] }];
-        const stream = memoryAgent.execute(contents);
+        const stream = memoryAgent.execute([{ role: 'user', parts: [{ text: summarizationPrompt }] }]);
         let summaryJson = '';
-        for await (const chunk of stream) {
-            if (chunk.type === 'content') summaryJson += chunk.content;
-        }
+        for await (const chunk of stream) if (chunk.type === 'content') summaryJson += chunk.content;
         
         const result = JSON.parse(summaryJson.replace(/```json|```/g, '').trim());
         const summary = result.summary;
 
-        if (summary && summary.length > 20) {
-            console.log(`Supervisor (LTM): Generated potential memory: "${summary}"`);
-            const isNovel = await this._isMemoryNovel(agent.id, summary);
-            if(isNovel) {
-                await agentMemoryService.addMemory(agent.id, {
-                    content: cleanText(summary),
-                    type: 'self-generated',
-                });
-                console.log(`Supervisor (LTM): Committed new NOVEL memory for ${agent.name}.`);
-            } else {
-                 console.log(`Supervisor (LTM): Discarded redundant memory for ${agent.name}.`);
-            }
-        } else {
-            console.log(`Supervisor (LTM): Commit for ${agent.name} skipped (summary too short or empty).`);
+        if (summary && summary.length > 20 && await this._isMemoryNovel(agent.id, summary)) {
+            await agentMemoryService.addMemory(agent.id, { content: cleanText(summary), type: 'self-generated' });
+            console.log(`Supervisor (LTM): Committed new NOVEL memory for ${agent.name}.`);
         }
     } catch (error) {
         console.error("Supervisor (LTM): Failed to commit session to LTM.", error);

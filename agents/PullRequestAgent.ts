@@ -1,4 +1,5 @@
 
+
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part, Content } from '@google/genai';
@@ -90,6 +91,10 @@ export const PullRequestAgent: Agent = {
                         yield { type: 'content', content: part.text, agentName: this.name };
                     }
                 }
+            }
+
+            if (chunk.usageMetadata) {
+                yield { type: 'usageMetadata', usage: chunk.usageMetadata, agentName: this.name };
             }
         }
     }

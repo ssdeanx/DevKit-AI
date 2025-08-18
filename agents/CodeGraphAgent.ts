@@ -1,4 +1,5 @@
 
+
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Type, Part, Content } from '@google/genai';
@@ -103,6 +104,10 @@ export const CodeGraphAgent: Agent = {
             contents: contents,
             ...this.config
         });
+        
+        if (response.usageMetadata) {
+            yield { type: 'usageMetadata', usage: response.usageMetadata, agentName: this.name };
+        }
         
         yield { type: 'content', content: response.text, agentName: this.name };
     }

@@ -108,6 +108,10 @@ export const MemoryAgent: Agent = {
             ...configWithSchema
         });
         
+        if (response.usageMetadata) {
+            yield { type: 'usageMetadata', usage: response.usageMetadata, agentName: this.name };
+        }
+
         yield { type: 'content', content: response.text, agentName: this.name };
     }
 };

@@ -1,8 +1,11 @@
+
+
 import { Agent, defaultAgent } from "../agents";
 import { geminiService } from "./gemini.service";
 import { agentService } from "./agent.service";
 import { Type } from "@google/genai";
 import { cacheService } from "./cache.service";
+import { agentPerformanceService } from "./agent-performance.service";
 
 class Orchestrator {
     async selectAgent(prompt: string): Promise<{ agent: Agent, reasoning: string }> {
@@ -22,13 +25,37 @@ class Orchestrator {
             }
         }
 
+        const agentPerformance = await Promise.all(
+            availableAgents.map(async (agent) => {
+                const perf = await agentPerformanceService.getAveragePerformance(agent.id);
+                return { name: agent.name, perf };
+            })
+        );
+
+        const performanceSummary = agentPerformance
+            .filter(p => p.perf !== null && p.perf.runCount > 0)
+            .map(p => `- **${p.name}**: Avg Score: ${p.perf!.avgFinalScore.toFixed(2)} (${p.perf!.runCount} runs)`)
+            .join('\n');
+
+        let performanceContext = '';
+        if (performanceSummary) {
+            performanceContext = `
+**Historical Agent Performance (Score: 0.1-1.2, higher is better):**
+This data shows how effectively and efficiently agents have performed on past tasks. The score incorporates token efficiency, heuristic quality checks, and direct user feedback. Use this as a significant factor in your decision.
+${performanceSummary}
+`;
+        }
+
+
         const systemInstruction = `You are an expert request router performing meta-cognition. Your goal is to select the best agent to handle a user's request from the provided list.
 
 Your process is a strict two-step Chain-of-Thought:
 1.  **Analyze Intent**: First, classify the user's core intent. Is it code analysis, file generation, UI control, web research, text refinement, planning a multi-step task, or general conversation?
-2.  **Select Agent**: Based on the identified intent, select the single most specialized agent from the list below. Your selection must be precise.
+2.  **Select Agent**: Based on the identified intent and historical performance data, select the single most specialized and effective agent from the list below. Your selection must be precise.
 
-You must respond with a JSON object that strictly follows this schema: {"reasoning": "A brief explanation of your choice, starting with the identified intent.", "agent_name": "The exact name of the best agent"}.
+You must respond with a JSON object that strictly follows this schema: {"reasoning": "A brief explanation of your choice, starting with the identified intent and referencing performance if it was a factor.", "agent_name": "The exact name of the best agent"}.
+
+${performanceContext}
 
 **Available agents:**
 ${availableAgents.map(a => `- **${a.name}**: ${a.description}`).join('\n')}

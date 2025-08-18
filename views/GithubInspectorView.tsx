@@ -215,7 +215,8 @@ const GithubInspectorView: React.FC = () => {
                                 <div className="flex items-center justify-center h-full text-muted-foreground">
                                     <div className="text-center p-4 border-2 border-dashed rounded-lg">
                                         <GithubIcon className="w-12 h-12 mx-auto mb-2" />
-                                        <p>Load a repository to see its file structure here.</p>
+                                        <p className="font-semibold text-foreground">Load a repository</p>
+                                        <p className="text-sm">Enter a URL above to begin inspecting and staging files.</p>
                                     </div>
                                 </div>
                             )}

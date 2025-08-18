@@ -30,6 +30,7 @@ export function useStreamingOperation<P extends any[]>(
     setThoughts('');
     setContent('');
     setAgentName('');
+    let operationSucceeded = false;
 
     try {
       const { agent, stream } = await executeFunction(...params);
@@ -42,6 +43,7 @@ export function useStreamingOperation<P extends any[]>(
           setContent(prev => prev + chunk.content);
         }
       }
+      operationSucceeded = true;
 
     } catch (e: any) {
       const errorMessage = e.message || 'An unexpected error occurred during the streaming operation.';
@@ -49,8 +51,11 @@ export function useStreamingOperation<P extends any[]>(
       toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
     } finally {
       setIsLoading(false);
+       if (operationSucceeded) {
+          toast({ title: "Generation Complete", description: `${agentName || 'Agent'} finished successfully.` });
+      }
     }
-  }, [executeFunction, toast]);
+  }, [executeFunction, toast, agentName]);
 
   const reset = useCallback(() => {
     setThoughts('');

@@ -1,6 +1,5 @@
 
 
-
 import React from 'react';
 import { Message } from '../views/ChatView';
 import { useSettings } from '../context/SettingsContext';
@@ -18,7 +17,7 @@ interface ChatMessageProps {
     onFeedback: (messageId: string, rating: 'positive' | 'negative') => void;
 }
 
-const SourceList: React.FC<{ sources: GroundingChunk[] }> = ({ sources }) => (
+const SourceList: React.FC<{ sources: GroundingChunk[] }> = React.memo(({ sources }) => (
     <div className="mt-4 pt-2 border-t border-border/50">
         <h4 className="text-xs font-semibold text-muted-foreground mb-2">Sources:</h4>
         <div className="flex flex-wrap gap-2">
@@ -42,7 +41,8 @@ const SourceList: React.FC<{ sources: GroundingChunk[] }> = ({ sources }) => (
             })}
         </div>
     </div>
-);
+));
+SourceList.displayName = 'SourceList';
 
 
 const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, isLastMessage, isLoading, onFeedback }) => {
@@ -116,5 +116,6 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, isLastMes
       </div>
     );
 });
+ChatMessage.displayName = 'ChatMessage';
 
 export default ChatMessage;

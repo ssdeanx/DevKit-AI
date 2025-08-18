@@ -1,6 +1,7 @@
 
+
 import { orchestrator } from './orchestrator';
-import { Agent, AgentExecuteStream, WorkflowPlan } from '../agents/types';
+import { Agent, AgentExecuteStream, WorkflowPlan, TokenUsage } from '../agents/types';
 import { agentService } from './agent.service';
 import { FileNode, StagedFile, githubService } from './github.service';
 import { ViewName, WorkflowStep } from '../App';
@@ -100,6 +101,7 @@ class Supervisor {
     callbacks: { setActiveView: (view: ViewName) => void },
     forceAgentId?: string,
     retryContext?: RetryContext,
+    initialContents?: Content[]
   ): Promise<{ agent: Agent; stream: AgentExecuteStream }> {
     try {
         this.apiKey = githubContext.apiKey || ''; // Store apiKey for this request
@@ -124,63 +126,69 @@ class Supervisor {
         // 1. Add Short-Term Memory (current conversation)
         const recentHistory = shortTermMemoryService.getHistory(5); // Get last 5 turns
         if (recentHistory.length > 0) {
-            let stmContext = `### Short-Term Memory (Current Conversation Context)
-    This is the recent history of our current conversation. Use it to understand the immediate context.
-    `;
-            stmContext += recentHistory.map(entry => `[${entry.author === 'user' ? 'USER' : 'AI'}]: ${cleanText(entry.content)}`).join('\n');
+            let stmContext = `<CONVERSATION_HISTORY>
+This is the recent history of our current conversation. Use it to understand the immediate context.
+${recentHistory.map(entry => `[${entry.author === 'user' ? 'USER' : 'AI'}]: ${cleanText(entry.content)}`).join('\n')}
+</CONVERSATION_HISTORY>`;
             contextParts.push({ text: stmContext });
         }
 
         // 2. Add Long-Term Memory (facts & feedback)
         const relevantMemories = await agentMemoryService.searchMemories(selectedAgent.id, effectivePrompt);
         if (relevantMemories.length > 0) {
-            let ltmContext = `### Long-Term Memory (Personal Knowledge & Feedback)
-    This is your personal memory of key facts and user feedback from past sessions. Use it to improve your performance and avoid past mistakes.
-    `;
-            ltmContext += relevantMemories.map(mem => `- [${mem.type.toUpperCase()}] ${mem.content}`).join('\n');
+            let ltmContext = `<LONG_TERM_MEMORY>
+This is your personal memory of key facts and user feedback from past sessions. Use it to improve your performance and avoid past mistakes.
+${relevantMemories.map(mem => `- [${mem.type.toUpperCase()}] ${mem.content}`).join('\n')}
+</LONG_TERM_MEMORY>`;
             contextParts.push({ text: ltmContext });
         }
 
         // 3. Add retry context if it exists
         if (retryContext) {
-            contextParts.push({ text: `### CRITICAL: Previous Attempt Failed
-    You are re-attempting a task based on direct user feedback.
-    [USER FEEDBACK]: "${retryContext.feedback}"
-    Analyze this feedback carefully to improve your response and avoid the previous error.` });
+            contextParts.push({ text: `<RETRY_CONTEXT>
+CRITICAL: Your previous attempt to answer this failed. You are re-attempting the task based on direct user feedback.
+[USER FEEDBACK]: "${retryContext.feedback}"
+Analyze this feedback carefully to improve your response and avoid the previous error.
+</RETRY_CONTEXT>` });
         }
 
         // 4. Add GitHub context
         if (selectedAgent.acceptsContext && (githubContext.fileTree || githubContext.stagedFiles.length > 0)) {
             console.log(`Supervisor: Adding GitHub context for agent ${selectedAgent.name}.`);
-            let gitContextString = "### GitHub Repository Context\nThe user has loaded a GitHub repository. This is your primary source of truth for the project.\n\n";
+            let gitContextString = "<GITHUB_CONTEXT>\nThis is your primary source of truth for the user's project.\n\n";
 
             if (githubContext.fileTree && githubContext.fileTree.length > 0) {
-                gitContextString += `#### Project File Structure:\n\`\`\`\n${formatFileTree(githubContext.fileTree)}\n\`\`\`\n\n`;
+                gitContextString += `<FILE_STRUCTURE>\n${formatFileTree(githubContext.fileTree)}\n</FILE_STRUCTURE>\n\n`;
             }
             
             if (githubContext.stagedFiles.length > 0) {
-                gitContextString += "#### Content of Staged Files:\n";
+                gitContextString += "<STAGED_FILES>\n";
                 for (const file of githubContext.stagedFiles) {
                     const cleanedContent = cleanText(file.content);
-                    gitContextString += `--- START OF FILE: ${file.path} ---\n\`\`\`\n${cleanedContent}\n\`\`\`\n--- END OF FILE: ${file.path} ---\n\n`;
+                    gitContextString += `<FILE path="${file.path}">\n${cleanedContent}\n</FILE>\n\n`;
                 }
+                gitContextString += "</STAGED_FILES>\n";
             }
+            gitContextString += "</GITHUB_CONTEXT>";
             contextParts.push({ text: gitContextString });
         }
 
-        // Construct the final prompt
         const finalPromptParts: Part[] = [
             ...contextParts,
-            { text: `Based on all the context provided, please handle the following user request:\n\n[USER REQUEST]:\n"${effectivePrompt}"` }
+            { text: `Based on all the context provided, please handle the following user request:\n\n<USER_REQUEST>\n${effectivePrompt}\n</USER_REQUEST>` }
         ];
+        
+        const finalContents: Content[] = initialContents 
+            ? initialContents
+            : [{ role: 'user', parts: finalPromptParts }];
 
         if (selectedAgent.id === PlannerAgent.id) {
             console.log(`Supervisor: Executing multi-step plan with ${selectedAgent.name}.`);
-            const stream = this.executePlan(selectedAgent, finalPromptParts, callbacks, contextParts, effectivePrompt);
+            const stream = this.executePlan(selectedAgent, finalContents, callbacks, contextParts, effectivePrompt);
             return { agent: selectedAgent, stream };
         } else {
             console.log(`Supervisor: Executing single agent ${selectedAgent.name} with function calling.`);
-            const stream = this.executeAgentWithFunctionCalling(selectedAgent, finalPromptParts, callbacks);
+            const stream = this.executeAgentWithFunctionCalling(selectedAgent, finalContents, callbacks);
             return { agent: selectedAgent, stream };
         }
     } catch(error) {
@@ -197,22 +205,21 @@ class Supervisor {
 
   private async *executePlan(
     planner: Agent,
-    prompt: string | Part[],
+    contents: Content[],
     callbacks: { setActiveView: (view: ViewName) => void; },
     baseContextParts: Part[],
     originalUserPrompt: string,
   ): AgentExecuteStream {
     // Step 1: Get the plan from the PlannerAgent
     console.log("Supervisor (Plan): Requesting plan from PlannerAgent.");
-    const plannerContents: Content[] = [{ role: 'user', parts: Array.isArray(prompt) ? prompt : [{ text: prompt as string }] }];
-    const planStream = planner.execute(plannerContents);
+    const planStream = planner.execute(contents);
     let planJsonString = '';
     for await (const chunk of planStream) {
         if (chunk.type === 'content') {
             planJsonString += chunk.content.replace(/```json|```/g, '').trim();
         }
-        // Yield thoughts from the planner
-        yield { ...chunk, agentName: planner.name };
+        // Yield thoughts and metadata from the planner
+        yield chunk;
     }
 
     let parsedPlan: WorkflowPlan;
@@ -236,11 +243,12 @@ class Supervisor {
     for (const step of parsedPlan.plan) {
         let stepSucceeded = true;
         let stepOutput = '';
+        let stepUsage: TokenUsage | null = null;
         
-        console.log(`Supervisor (Plan): Executing step ${step.step}: Agent: ${step.agent}, Task: "${step.task}"`);
         const currentStepIndex = workflowSteps.findIndex(ws => ws.step === step.step);
         workflowSteps[currentStepIndex].status = 'in-progress';
         yield { type: 'workflowUpdate', plan: [...workflowSteps] };
+        console.log(`Supervisor (Plan): Executing step ${step.step}: Agent: ${step.agent}, Task: "${step.task}"`);
 
         const agentToExecute = allAgents.find(a => a.name === step.agent);
         if (!agentToExecute) {
@@ -248,33 +256,32 @@ class Supervisor {
             stepOutput = `\nError: Agent ${step.agent} not found. Skipping step.`;
             stepSucceeded = false;
         } else {
-            const subAgentPromptText = `You are one step in a multi-agent plan to address a user's request.
-Your work is crucial for the success of the overall plan.
-
-### Original User Request
-To ensure you don't lose sight of the overall goal, here is the user's original request:
-"${originalUserPrompt}"
-
-### Your Specific Task
+            const subAgentPromptText = `<PLAN_CONTEXT>
+You are one step in a multi-agent plan to address a user's request. Your work is crucial for the success of the overall plan.
+<ORIGINAL_USER_REQUEST>
+${originalUserPrompt}
+</ORIGINAL_USER_REQUEST>
+<CURRENT_TASK>
 Your current task is: "${step.task}"
-
-${executionContext ? `### Context from Previous Steps
+</CURRENT_TASK>
+${executionContext ? `<PREVIOUS_STEP_OUTPUT>
 The output from the previous step is provided below. Use it to inform your work.
----
 ${executionContext}
----` : 'This is the first step, so there is no previous context.'}
-
-Please perform your task and provide the output.
-`;
+</PREVIOUS_STEP_OUTPUT>` : '<INFO>This is the first step, so there is no previous context.</INFO>'}
+</PLAN_CONTEXT>
+Please perform your task and provide the output.`;
             
             const subAgentPromptParts: Part[] = [...baseContextParts, { text: subAgentPromptText }];
+            const subAgentContents: Content[] = [{ role: 'user', parts: subAgentPromptParts }];
 
             try {
-                const agentStream = this.executeAgentWithFunctionCalling(agentToExecute, subAgentPromptParts, callbacks);
+                const agentStream = this.executeAgentWithFunctionCalling(agentToExecute, subAgentContents, callbacks);
                 for await (const chunk of agentStream) {
-                    yield { ...chunk, agentName: agentToExecute.name };
+                    yield chunk;
                     if (chunk.type === 'content') {
                         stepOutput += chunk.content;
+                    } else if (chunk.type === 'usageMetadata') {
+                        stepUsage = chunk.usage;
                     }
                 }
             } catch (error: any) {
@@ -286,29 +293,28 @@ Please perform your task and provide the output.
         
         // Update context for the next step
         if (stepSucceeded) {
-            executionContext = `\n\n--- Output from Step ${step.step} (${agentToExecute?.name}) ---\n${stepOutput}`;
+            executionContext = `\n--- Output from Step ${step.step} (${agentToExecute?.name}) ---\n${stepOutput}`;
         } else {
-            executionContext = `\n\n--- FAILED: Output from Step ${step.step} (${agentToExecute?.name}) ---\n${stepOutput}`;
+            executionContext = `\n--- FAILED: Output from Step ${step.step} (${agentToExecute?.name}) ---\n${stepOutput}`;
         }
 
-        workflowSteps[currentStepIndex].status = 'completed'; // Mark as completed even if failed, to move to next step.
+        workflowSteps[currentStepIndex].status = 'completed';
         workflowSteps[currentStepIndex].output = stepOutput;
-        console.log(`Supervisor (Plan): Step ${step.step} finished.`);
+        if (stepUsage) {
+            workflowSteps[currentStepIndex].usage = stepUsage;
+        }
+        yield { type: 'workflowUpdate', plan: [...workflowSteps] };
+        console.log(`Supervisor (Plan): Step ${step.step} finished with token usage:`, stepUsage);
     }
-
-     yield { type: 'workflowUpdate', plan: [...workflowSteps] };
   }
 
   private async *executeAgentWithFunctionCalling(
     agent: Agent,
-    prompt: string | Part[],
+    contents: Content[],
     callbacks: { setActiveView: (view: ViewName) => void; }
   ): AgentExecuteStream {
     
-    const history: Content[] = [{
-        role: 'user',
-        parts: Array.isArray(prompt) ? structuredClone(prompt) : [{text: prompt as string}]
-    }];
+    const history: Content[] = structuredClone(contents);
     const MAX_TURNS = 10;
     let currentTurn = 0;
 
@@ -318,15 +324,13 @@ Please perform your task and provide the output.
         
         const stream = agent.execute(history);
         let functionCall: FunctionCall | null = null;
-        let hasContent = false;
 
         for await (const chunk of stream) {
-            if (chunk.type === 'content' && chunk.content) hasContent = true;
+            // Pass all chunks through to the UI
+            yield chunk;
             if (chunk.type === 'functionCall' && chunk.functionCall) {
                 functionCall = chunk.functionCall;
             }
-            // Pass all chunks through to the UI
-            yield chunk;
         }
         
         if (functionCall) {

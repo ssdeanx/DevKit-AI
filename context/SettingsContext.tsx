@@ -1,7 +1,7 @@
 import React, { createContext, useState, useEffect, ReactNode, useContext } from 'react';
 
 export type AgentThoughtsStyle = 'default' | 'terminal' | 'blueprint' | 'handwritten' | 'code-comment' | 'matrix' | 'scroll' | 'notebook' | 'gradient-glow' | 'scientific-journal' | 'redacted';
-export type WorkflowVisualType = 'simple-list' | 'detailed-card' | 'timeline' | 'metro-grid' | 'stepped-process' | 'minimalist-log';
+export type WorkflowVisualType = 'simple-list' | 'detailed-card' | 'timeline' | 'metro-grid' | 'stepped-process' | 'minimalist-log' | 'neural-network' | 'circuit-board' | 'git-branch';
 export type Theme = 'light' | 'dark';
 
 interface Settings {

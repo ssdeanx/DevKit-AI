@@ -1,12 +1,12 @@
 
 
-import React, { useState, useEffect, useLayoutEffect, useContext, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useContext, useRef, useCallback } from 'react';
 import { supervisor } from '../services/supervisor';
 import { SparklesIcon, ChatIcon, CodeGraphIcon, DocumentIcon, GithubIcon } from '../components/icons';
 import { GithubContext } from '../context/GithubContext';
 import { historyService } from '../services/history.service';
 import { ViewName, WorkflowStep } from '../App';
-import { FunctionCall, GroundingChunk } from '@google/genai';
+import { FunctionCall, GroundingChunk, UsageMetadata } from '@google/genai';
 import WorkflowVisualizer from '../components/WorkflowVisualizer';
 import ViewHeader from '../components/ViewHeader';
 import ChatMessage from '../components/ChatMessage';
@@ -17,6 +17,7 @@ import { Button } from '../components/ui/Button';
 import RepoStatusIndicator from '../components/RepoStatusIndicator';
 import FunctionCallMessage from '../components/FunctionCallMessage';
 import { motion } from 'framer-motion';
+import { useToast } from '../context/ToastContext';
 
 export type MessageAuthor = 'user' | 'ai';
 export type Feedback = 'positive' | 'negative' | null;
@@ -30,6 +31,7 @@ export interface Message {
   feedback: Feedback;
   functionCall?: FunctionCall;
   sources?: GroundingChunk[];
+  runId?: string; // New field to track the specific agent execution
 }
 
 interface RetryContext {
@@ -123,6 +125,7 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
   const [feedbackModal, setFeedbackModal] = useState<FeedbackModalState>({ isOpen: false, messageId: null, feedbackText: '' });
   const { repoUrl, fileTree, stagedFiles, apiKey } = useContext(GithubContext);
   const scrollRef = useAutoScroll([messages, workflowPlan]);
+  const { toast } = useToast();
 
   useEffect(() => {
     const history = historyService.getHistory();
@@ -134,6 +137,7 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
     setWorkflowPlan(null);
     let finalAgentName = '';
     let finalAiMessage: Message | null = null;
+    let currentRunId: string | undefined = undefined;
 
     try {
         const { agent, stream } = await supervisor.handleRequest(prompt, { fileTree, stagedFiles, apiKey }, { setActiveView }, undefined, retryContext);
@@ -157,7 +161,9 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
         let finalSources: GroundingChunk[] | undefined = undefined;
 
         for await (const chunk of stream) {
-            if (chunk.type === 'thought') {
+            if (chunk.type === 'runStart' && chunk.runId) {
+                currentRunId = chunk.runId;
+            } else if (chunk.type === 'thought') {
                 finalThoughts += chunk.content;
             } else if (chunk.type === 'content') {
                 finalContent += chunk.content;
@@ -167,17 +173,20 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
                 setWorkflowPlan(chunk.plan);
             } else if (chunk.type === 'metadata' && chunk.metadata.groundingMetadata) {
                 finalSources = chunk.metadata.groundingMetadata.groundingChunks;
+            } else if (chunk.type === 'usageMetadata' && workflowPlan) {
+                 // This chunk type is now handled by the supervisor for workflows
+                 // No action needed here as the plan passed to setWorkflowPlan will contain the usage data
             }
             
             setMessages(prev =>
                 prev.map(msg =>
-                    msg.id === aiMessageId ? { ...msg, content: finalContent, thoughts: finalThoughts, functionCall: finalFunctionCall, agentName: chunk.agentName || agent.name, sources: finalSources } : msg
+                    msg.id === aiMessageId ? { ...msg, content: finalContent, thoughts: finalThoughts, functionCall: finalFunctionCall, agentName: chunk.agentName || agent.name, sources: finalSources, runId: currentRunId } : msg
                 )
             );
         }
 
         finalAiMessage = {
-            id: aiMessageId, author: 'ai', content: finalContent, thoughts: finalThoughts, agentName: agent.name, feedback: null, functionCall: finalFunctionCall, sources: finalSources
+            id: aiMessageId, author: 'ai', content: finalContent, thoughts: finalThoughts, agentName: agent.name, feedback: null, functionCall: finalFunctionCall, sources: finalSources, runId: currentRunId
         };
 
         historyService.addEntry(finalAiMessage);
@@ -220,45 +229,48 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
     await executeAiTurn(prompt);
   };
   
-  const handleFeedback = (messageId: string, rating: 'positive' | 'negative') => {
+  const handleFeedback = useCallback((messageId: string, rating: 'positive' | 'negative') => {
       setMessages(prev => prev.map(msg => 
           msg.id === messageId ? {...msg, feedback: rating} : msg
       ));
 
       const message = messages.find(msg => msg.id === messageId);
-      if (!message) return;
+      if (!message || !message.runId) return;
 
       if (rating === 'negative') {
           setFeedbackModal({ isOpen: true, messageId, feedbackText: '' });
       } else {
-          supervisor.recordFeedback(messageId, 'positive', null, message.agentName);
+          supervisor.recordFeedbackForRun(message.runId, 'positive', null);
+          toast({ title: "Feedback Received", description: "Thank you! Your feedback helps the AI improve." });
       }
-  };
+  }, [messages, toast]);
 
-  const handleFeedbackSubmit = async () => {
+  const handleFeedbackSubmit = useCallback(async () => {
     if (!feedbackModal.messageId || !feedbackModal.feedbackText.trim()) return;
 
     const message = messages.find(msg => msg.id === feedbackModal.messageId);
-    if (!message) return;
+    if (!message || !message.runId) return;
 
-    supervisor.recordFeedback(feedbackModal.messageId, 'negative', feedbackModal.feedbackText, message.agentName);
+    supervisor.recordFeedbackForRun(message.runId, 'negative', feedbackModal.feedbackText);
     
     const messageIndex = messages.findIndex(msg => msg.id === feedbackModal.messageId);
     if (messageIndex > 0) {
         const userMessage = messages[messageIndex - 1];
         if (userMessage.author === 'user') {
+            toast({ title: "Retrying with Feedback", description: "The AI will now attempt to answer again using your feedback." });
             await executeAiTurn(userMessage.content, { originalPrompt: userMessage.content, feedback: feedbackModal.feedbackText });
         }
     }
     setFeedbackModal({ isOpen: false, messageId: null, feedbackText: '' });
-  };
+  }, [feedbackModal, messages, toast]);
 
-  const handleNewChat = () => {
+  const handleNewChat = useCallback(() => {
       setMessages([]);
       shortTermMemoryService.clear();
       setIsLoading(false);
       setWorkflowPlan(null);
-  };
+      toast({ title: "New Chat Started", description: "Your conversation history has been cleared." });
+  }, [toast]);
 
   const getSubheaderText = () => {
     let contextParts = [];

@@ -66,6 +66,10 @@ export const IssueLabelAgent: Agent = {
                     yield { type: 'functionCall', functionCall: part.functionCall, agentName: this.name };
                 }
             }
+            
+            if (chunk.usageMetadata) {
+                yield { type: 'usageMetadata', usage: chunk.usageMetadata, agentName: this.name };
+            }
         }
     }
 };

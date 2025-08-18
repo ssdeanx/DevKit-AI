@@ -1,4 +1,5 @@
 
+
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Type, Part, Content } from '@google/genai';
@@ -73,6 +74,10 @@ export const StructuredOutputAgent: Agent = {
             ...this.config
         });
         
+        if (response.usageMetadata) {
+            yield { type: 'usageMetadata', usage: response.usageMetadata, agentName: this.name };
+        }
+
         yield { type: 'content', content: `\`\`\`json\n${response.text}\n\`\`\``, agentName: this.name };
     }
 };

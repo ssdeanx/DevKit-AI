@@ -1,5 +1,4 @@
 import React from 'react';
-import { Button } from './ui/Button';
 import { LightbulbIcon } from './icons';
 
 interface ExamplePromptsProps {
@@ -18,17 +17,15 @@ const ExamplePrompts: React.FC<ExamplePromptsProps> = ({ prompts, onSelectPrompt
         <LightbulbIcon className="w-4 h-4 mr-2" />
         <span>Try an example:</span>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
         {prompts.map((prompt, index) => (
-          <Button
+          <button
             key={index}
-            variant="outline"
-            size="sm"
             onClick={() => onSelectPrompt(prompt)}
-            className="text-xs h-auto py-1 px-2.5"
+            className="text-left p-3 border rounded-lg hover:bg-accent hover:border-primary/50 focus:ring-2 focus:ring-ring focus:outline-none transition-all text-sm text-muted-foreground h-full"
           >
             {prompt}
-          </Button>
+          </button>
         ))}
       </div>
     </div>

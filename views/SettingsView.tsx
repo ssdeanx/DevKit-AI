@@ -1,5 +1,4 @@
 
-
 import React, { useState, useCallback } from 'react';
 import { agentService } from '../services/agent.service';
 import { Agent, AgentConfig } from '../agents/types';
@@ -18,6 +17,7 @@ import ViewHeader from '../components/ViewHeader';
 import { SettingsIcon, CheckCircleIcon, WorkflowIcon, BotIcon } from '../components/icons';
 import { agentMemoryService } from '../services/agent-memory.service';
 import { useToast } from '../context/ToastContext';
+import { agentPerformanceService } from '../services/agent-performance.service';
 
 
 const SettingsSlider: React.FC<{
@@ -48,7 +48,7 @@ const SettingsSlider: React.FC<{
     </div>
 );
 
-const AgentSettings: React.FC<{ agent: Agent, onConfigChange: (agentId: string, newConfig: Partial<AgentConfig>) => void }> = ({ agent, onConfigChange }) => {
+const AgentSettings: React.FC<{ agent: Agent, onConfigChange: (agentId: string, newConfig: Partial<AgentConfig>) => void }> = React.memo(({ agent, onConfigChange }) => {
     
     const handleGenerationConfigChange = (param: keyof GenerationConfig, value: any) => {
         onConfigChange(agent.id, { config: { [param]: value } });
@@ -234,7 +234,8 @@ const AgentSettings: React.FC<{ agent: Agent, onConfigChange: (agentId: string, 
             </CardContent>
         </Card>
     );
-};
+});
+AgentSettings.displayName = 'AgentSettings';
 
 
 const SettingsView: React.FC = () => {
@@ -268,6 +269,33 @@ const SettingsView: React.FC = () => {
     { id: 'metro-grid', label: 'Metro Grid', preview: <div className="grid grid-cols-2 gap-1 w-full h-full">{Array(4).fill(0).map((_,i) => <div key={i} className={cn("rounded-sm", i === 0 ? "bg-success/50" : i === 1 ? "bg-primary/50" : "bg-border")}></div>)}</div> },
     { id: 'stepped-process', label: 'Stepped Process', preview: <div className="flex items-center w-full"><div className="w-3 h-3 rounded-full bg-success"></div><div className="flex-1 h-0.5 bg-border mx-1"></div><div className="w-3 h-3 rounded-full bg-primary"></div><div className="flex-1 h-0.5 bg-border mx-1"></div><div className="w-3 h-3 rounded-full bg-border"></div></div> },
     { id: 'minimalist-log', label: 'Minimalist Log', preview: <div className="text-left font-mono text-[10px] leading-tight"><p><span className="text-green-500">[OK]</span> Agent 1</p><p><span className="text-blue-500">[RUN]</span> Agent 2</p><p><span className="opacity-50">[...]</span> Agent 3</p></div> },
+    { id: 'neural-network', label: 'Neural Network', preview: (
+        <svg width="48" height="32" viewBox="0 0 48 32" className="w-full h-full" stroke="hsl(var(--border))">
+            <circle cx="8" cy="8" r="3" fill="hsl(var(--dv-purple)/.5)" strokeWidth="1"></circle>
+            <circle cx="8" cy="24" r="3" fill="hsl(var(--dv-purple)/.5)" strokeWidth="1"></circle>
+            <circle cx="24" cy="16" r="4" fill="hsl(var(--dv-pink)/.5)" strokeWidth="1"></circle>
+            <circle cx="40" cy="16" r="3" fill="hsl(var(--dv-blue)/.5)" strokeWidth="1"></circle>
+            <line x1="10" y1="9" x2="21" y2="15" strokeWidth="0.5"></line>
+            <line x1="10" y1="23" x2="21" y2="17" strokeWidth="0.5"></line>
+            <line x1="28" y1="16" x2="37" y2="16" strokeWidth="0.5"></line>
+        </svg>
+    )},
+    { id: 'circuit-board', label: 'Circuit Board', preview: (
+        <svg width="48" height="32" viewBox="0 0 48 32" className="w-full h-full">
+            <path d="M 6 16 H 18 V 8 H 30 V 16 H 42" stroke="hsl(var(--border))" fill="none" strokeWidth="1"></path>
+            <rect x="2" y="12" width="8" height="8" rx="1" fill="hsl(var(--success)/.5)" stroke="hsl(var(--border))" strokeWidth="0.5"></rect>
+            <rect x="18" y="4" width="12" height="8" rx="1" fill="hsl(var(--primary)/.5)" stroke="hsl(var(--border))" strokeWidth="0.5"></rect>
+            <rect x="40" y="12" width="8" height="8" rx="1" fill="hsl(var(--muted))" stroke="hsl(var(--border))" strokeWidth="0.5"></rect>
+        </svg>
+    )},
+    { id: 'git-branch', label: 'Git Branch', preview: (
+        <svg width="32" height="48" viewBox="0 0 32 48" className="w-full h-full" stroke="hsl(var(--border))" fill="none">
+            <path d="M 16 4 V 18 C 16 22, 8 22, 8 26 V 34 C 8 38, 16 38, 16 42 V 44" strokeWidth="1"></path>
+            <circle cx="16" cy="10" r="3" fill="hsl(var(--dv-teal))" strokeWidth="1"></circle>
+            <circle cx="8" cy="30" r="3" fill="hsl(var(--dv-orange))" strokeWidth="1"></circle>
+            <circle cx="16" cy="44" r="3" fill="hsl(var(--dv-teal))" strokeWidth="1"></circle>
+        </svg>
+    )},
   ];
 
   const handleClearCache = async () => {
@@ -278,6 +306,11 @@ const SettingsView: React.FC = () => {
   const handleClearMemories = async () => {
       await agentMemoryService.clearAllMemories(true); // Pass true to bypass confirm
       toast({ title: "Success", description: "All agent memories have been cleared.", variant: 'destructive' });
+  };
+
+  const handleClearPerformance = async () => {
+    await agentPerformanceService.clearAllPerformanceData();
+    toast({ title: "Success", description: "All agent performance data has been cleared." });
   };
 
 
@@ -345,7 +378,7 @@ const SettingsView: React.FC = () => {
                     
                     <div className="border-t pt-6 space-y-4">
                         <Label>Workflow Visual Style</Label>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                             {workflowStyles.map(style => (
                                 <div
                                     key={style.id}
@@ -367,7 +400,7 @@ const SettingsView: React.FC = () => {
                     <div className="border-t pt-6">
                         <h3 className="text-lg font-medium text-foreground mb-2">Data Management</h3>
                         <p className="text-sm text-muted-foreground mb-4">
-                            Control data stored in your browser's local storage. Caching improves performance, while agent memories help the AI learn from feedback.
+                            Control data stored in your browser. This includes caches, learned memories, and performance metrics.
                         </p>
                         <div className="space-y-4">
                              <div className="flex items-center justify-between">
@@ -389,6 +422,18 @@ const SettingsView: React.FC = () => {
                                 <Button
                                     variant="outline"
                                     onClick={handleClearCache}
+                                >
+                                    Clear Now
+                                </Button>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                 <Label className="flex flex-col space-y-1">
+                                    <span>Clear Agent Performance Data</span>
+                                    <span className="font-normal text-xs text-muted-foreground">Resets all agent efficiency ratings.</span>
+                                </Label>
+                                <Button
+                                    variant="outline"
+                                    onClick={handleClearPerformance}
                                 >
                                     Clear Now
                                 </Button>

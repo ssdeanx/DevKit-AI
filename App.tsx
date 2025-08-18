@@ -19,6 +19,7 @@ import { ToastProvider } from './context/ToastContext';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import DocumentationView from './views/DocumentationView';
 import GitHubProView from './views/GitHubProView';
+import { TokenUsage } from './agents/types';
 
 export type ViewName = 
   | 'chat' 
@@ -40,6 +41,7 @@ export interface WorkflowStep {
     task: string;
     status: 'pending' | 'in-progress' | 'completed';
     output?: string;
+    usage?: TokenUsage;
 }
 
 const StagedFilesIndicator: React.FC = () => {

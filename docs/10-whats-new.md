@@ -1,7 +1,17 @@
-
 # What's New? (Changelog)
 
 This page tracks major updates, new features, and improvements to DevKit AI Pro.
+
+---
+
+### **Version 1.5.0**
+*Date: August 19, 2025*
+
+This update focuses on providing deeper insights into the AI's operations and costs.
+
+**✨ New Features & Improvements:**
+-   **New Feature: Workflow Token Tracking:** The Workflow Visualizer now displays the total token count for each completed step in a multi-agent plan. Hovering over the count reveals a detailed breakdown of input, output, and thinking tokens, providing transparency into API usage and cost.
+-   **New Documentation:** Added a dedicated guide on "Workflow Token Tracking" to the documentation.
 
 ---
 
@@ -34,4 +44,4 @@ This is a major feature release focused on deep workflow integration and visuali
     -   **Node Icons:** Added file-type-specific icons directly within each graph node for better readability.
 
 ---
-*Version 1.4.0*
+*Version 1.5.0*

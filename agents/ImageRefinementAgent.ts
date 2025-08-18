@@ -1,4 +1,5 @@
 
+
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part, Content, Type } from '@google/genai';
@@ -62,6 +63,10 @@ export const ImageRefinementAgent: Agent = {
             ...this.config
         });
         
+        if (response.usageMetadata) {
+            yield { type: 'usageMetadata', usage: response.usageMetadata, agentName: this.name };
+        }
+
         yield { type: 'content', content: response.text, agentName: this.name };
     }
 };
