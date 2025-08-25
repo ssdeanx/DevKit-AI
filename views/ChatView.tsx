@@ -313,18 +313,6 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
                     />
                 )
             ))}
-            {isLoading && messages[messages.length - 1]?.author === 'user' && (
-                <div className="flex items-end gap-3 animate-in">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-secondary flex items-center justify-center border">
-                      <SparklesIcon className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="chat-bubble chat-bubble-ai flex items-center gap-2">
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-pulse-dot" style={{animationDelay: '0s'}}></div>
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-pulse-dot" style={{animationDelay: '0.2s'}}></div>
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-pulse-dot" style={{animationDelay: '0.4s'}}></div>
-                  </div>
-                </div>
-            )}
              {messages.length === 0 && !isLoading && (
                 <div className="pt-10">
                     <BentoPromptExamples onSelectPrompt={setInputValue} />

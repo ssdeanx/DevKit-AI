@@ -2,8 +2,7 @@
 
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Part, Content, FunctionCallingConfigMode } from '@google/genai';
-import { searchGithubCode } from './tools';
+import { Part, Content } from '@google/genai';
 
 const systemInstruction = `### PERSONA
 You are "DevKit AI", a world-class AI assistant acting as a Principal Software Engineer and architect. Your persona is professional, insightful, and helpful. You are a 10x developer's trusted pair programmer.
@@ -15,8 +14,10 @@ Your primary goal is to assist developers with their questions, provide code, ex
 - **GitHub Context (Primary Source of Truth):** This is the most critical context. If a repository's file structure and/or file contents are provided, you MUST prioritize and base your answers on this information. It is your primary source of truth for the user's project. Any analysis or code generation must align with the patterns and libraries found in this context.
 - Your general knowledge is up-to-date, but always defer to the provided repository context if there is a conflict.
 
-### TOOLS
-- You have a specialized tool \`searchGithubCode\` for finding real-world code examples directly from public GitHub repositories. Prefer this over your general knowledge or a generic web search when a user asks for code examples or wants to see how a library is used in practice.
+### TOOL USAGE RULES
+- **GitHub Context First:** Your primary directive is to answer using the provided <GITHUB_CONTEXT>.
+- **Use Google Search Sparingly:** Only use the \`googleSearch\` tool if the user's question explicitly asks for real-time, external information (e.g., "what is the latest version of React?", "who won the F1 race?") that CANNOT be answered from the <GITHUB_CONTEXT> or your general knowledge.
+- **DO NOT** use \`googleSearch\` to answer questions about the code in the <GITHUB_CONTEXT>.
 
 ### OUTPUT FORMAT
 - For code snippets, always use Markdown code blocks with the correct language identifier (e.g., \`\`\`typescript).
@@ -38,14 +39,9 @@ export const ChatAgent: Agent = {
     config: {
         config: {
             systemInstruction,
+            tools: [{googleSearch: {}}],
             temperature: 0.7,
             topP: 0.9,
-            tools: [{ functionDeclarations: JSON.parse(JSON.stringify([searchGithubCode])) }],
-            toolConfig: {
-                functionCallingConfig: {
-                    mode: FunctionCallingConfigMode.AUTO
-                }
-            },
             thinkingConfig: {
                 includeThoughts: true,
                 thinkingBudget: -1,

@@ -45,11 +45,60 @@ const SourceList: React.FC<{ sources: GroundingChunk[] }> = React.memo(({ source
 SourceList.displayName = 'SourceList';
 
 
+const ThinkingBubble: React.FC<{ agentName?: string, thoughts?: string }> = ({ agentName, thoughts }) => {
+    const { settings } = useSettings();
+    const isSpecialStyle = ['terminal', 'matrix', 'code-comment', 'blueprint', 'handwritten', 'scroll', 'notebook', 'gradient-glow', 'scientific-journal', 'redacted'].includes(settings.agentThoughtsStyle);
+    const hasThoughts = thoughts && thoughts.trim().length > 0;
+
+    return (
+        <div className="flex items-end gap-3 animate-in w-full justify-start">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-secondary flex items-center justify-center border">
+                <SparklesIcon className="w-5 h-5 text-primary animate-spin" />
+            </div>
+            <div className={cn(
+                "chat-bubble chat-bubble-ai max-w-[80%]",
+                isSpecialStyle && 'p-0 bg-transparent border-none shadow-none'
+            )}>
+                 <Card className={cn(
+                    "bg-muted/50",
+                    settings.agentThoughtsStyle === 'terminal' && 'thoughts-terminal',
+                    settings.agentThoughtsStyle === 'blueprint' && 'thoughts-blueprint',
+                    settings.agentThoughtsStyle === 'handwritten' && 'thoughts-handwritten',
+                    settings.agentThoughtsStyle === 'code-comment' && 'thoughts-code-comment',
+                    settings.agentThoughtsStyle === 'matrix' && 'thoughts-matrix',
+                    settings.agentThoughtsStyle === 'scroll' && 'thoughts-scroll',
+                    settings.agentThoughtsStyle === 'notebook' && 'thoughts-notebook',
+                    settings.agentThoughtsStyle === 'gradient-glow' && 'thoughts-gradient-glow',
+                    settings.agentThoughtsStyle === 'scientific-journal' && 'thoughts-scientific-journal',
+                    settings.agentThoughtsStyle === 'redacted' && 'thoughts-redacted'
+                )}>
+                    <CardContent className="p-3">
+                        <h4 className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-2">
+                            <BrainIcon className="w-4 h-4" /> {agentName || 'AI'} IS THINKING
+                        </h4>
+                        <div className={cn(
+                            "text-xs min-h-[20px] whitespace-pre-wrap break-word",
+                            settings.agentThoughtsStyle === 'code-comment' && 'thoughts-code-comment-content',
+                            !hasThoughts && 'animate-pulse'
+                        )}>
+                            {thoughts || '...'}
+                            {hasThoughts && <span className="animate-blink">▋</span>}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    );
+};
+
 const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, isLastMessage, isLoading, onFeedback }) => {
     const isUser = message.author === 'user';
-    const { settings } = useSettings();
-    const isAiLoading = message.author === 'ai' && isLastMessage && isLoading;
-    const needsCursor = (settings.agentThoughtsStyle === 'terminal' || settings.agentThoughtsStyle === 'matrix') && isAiLoading;
+    
+    const isAiThinking = message.author === 'ai' && isLastMessage && isLoading && !message.content.trim() && !message.functionCall;
+    
+    if (isAiThinking) {
+        return <ThinkingBubble agentName={message.agentName} thoughts={message.thoughts} />;
+    }
 
     return (
       <div className={cn("flex items-end gap-3 animate-in w-full", isUser ? "justify-end" : "justify-start")}>
@@ -60,26 +109,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, isLastMes
         )}
         <div className="flex flex-col gap-2 w-full" style={{ alignItems: isUser ? 'flex-end' : 'flex-start' }}>
             {!isUser && message.thoughts && (
-              <Card className={cn(
-                  "bg-muted/50 animate-in w-full max-w-[80%]",
-                  settings.agentThoughtsStyle === 'terminal' && 'thoughts-terminal',
-                  settings.agentThoughtsStyle === 'blueprint' && 'thoughts-blueprint',
-                  settings.agentThoughtsStyle === 'handwritten' && 'thoughts-handwritten',
-                  settings.agentThoughtsStyle === 'code-comment' && 'thoughts-code-comment',
-                  settings.agentThoughtsStyle === 'matrix' && 'thoughts-matrix',
-                  settings.agentThoughtsStyle === 'scroll' && 'thoughts-scroll',
-                  settings.agentThoughtsStyle === 'notebook' && 'thoughts-notebook',
-                  settings.agentThoughtsStyle === 'gradient-glow' && 'thoughts-gradient-glow',
-                  settings.agentThoughtsStyle === 'scientific-journal' && 'thoughts-scientific-journal',
-                  settings.agentThoughtsStyle === 'redacted' && 'thoughts-redacted'
-              )}>
+              <Card className="bg-muted/50 animate-in w-full max-w-[80%]">
                 <CardContent className="p-3">
                     <h4 className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-2"><BrainIcon className="w-4 h-4" /> AGENT THOUGHTS</h4>
-                    <div className={cn(
-                        "text-xs min-h-[20px]",
-                        settings.agentThoughtsStyle === 'code-comment' && 'thoughts-code-comment-content',
-                        needsCursor && 'typing-cursor'
-                    )} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    <div className="text-xs" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                       {message.thoughts}
                     </div>
                 </CardContent>
