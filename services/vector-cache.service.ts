@@ -1,4 +1,3 @@
-
 import { get, set, del, keys, clear } from 'idb-keyval';
 import { StagedFile } from './github.service';
 import { chunkText } from '../lib/text';
@@ -57,8 +56,12 @@ class VectorCacheService {
     
     async getIndexedFilePaths(): Promise<Set<string>> {
         const allKeys = await keys();
-        const chunkKeys = allKeys.filter((key): key is string => typeof key === 'string' && key.startsWith('vector-chunk::'));
-        const filePaths = new Set(chunkKeys.map(key => key.replace('vector-chunk::', '')));
+        const filePaths = new Set<string>();
+        for (const key of allKeys) {
+            if (typeof key === 'string' && key.startsWith('vector-chunk::')) {
+                filePaths.add(key.replace('vector-chunk::', ''));
+            }
+        }
         return filePaths;
     }
 
@@ -98,8 +101,10 @@ class VectorCacheService {
     async clear(): Promise<void> {
         try {
             const allKeys = await keys();
-            const chunkKeys = allKeys.filter(key => typeof key === 'string' && key.startsWith('vector-chunk::'));
-            await Promise.all(chunkKeys.map(key => del(key)));
+            const chunkKeysToDelete = allKeys.filter((key): key is string => 
+                typeof key === 'string' && key.startsWith('vector-chunk::')
+            );
+            await Promise.all(chunkKeysToDelete.map(key => del(key)));
             console.log("VectorCache: Cleared all indexed chunks.");
         } catch (error) {
             console.error("VectorCache: Failed to clear cache:", error);

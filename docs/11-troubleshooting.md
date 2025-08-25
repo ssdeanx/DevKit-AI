@@ -7,19 +7,32 @@ This page provides answers to common questions and solutions for potential issue
 
 ### GitHub Inspector
 
-#### **Q: I'm getting an error that says "GitHub API rate limit exceeded." What should I do?**
+#### **Q: I'm getting a "GitHub API rate limit exceeded" error. What should I do?**
 
-**A:** This is the most common issue when using the GitHub Inspector. The GitHub API limits the number of requests you can make without authentication.
+**A:** This is the most common issue and happens when you make too many requests to GitHub without an API key.
 
 **Solution: Use a Personal Access Token (PAT)**
+Using a PAT significantly increases your request limit.
+
 1.  **Generate a PAT:** Follow GitHub's official guide to [create a personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
-    -   When selecting scopes, you only need to grant `public_repo` access for public repositories. For private repositories, you will need to grant the full `repo` scope.
+    -   **Important:** You need to use a **"classic"** token, not a "fine-grained" one.
+    -   **Scopes:** For public repositories, you only need to grant the `public_repo` scope. For private repositories, you must grant the full `repo` scope.
 2.  **Add the PAT to DevKit:**
     -   Go to the **GitHub Inspector** view.
-    -   Paste your newly generated token into the "GitHub API Key (Optional)" field.
+    -   Paste your new token (it will start with `ghp_`) into the "GitHub API Key (Optional)" field.
 3.  **Reload:** Click "Load Repository" again.
 
-Your PAT is stored securely in your browser's local storage and is only used to make authenticated requests to the GitHub API, which provides a much higher rate limit.
+Your PAT is stored securely *only in your browser's local storage* and is never sent anywhere else.
+
+#### **Q: I've added my API key, but I'm getting an "Authentication failed" error.**
+
+**A:** This error means the key you provided is invalid, expired, or doesn't have the correct permissions.
+
+**Troubleshooting Steps:**
+1.  **Check the Token:** Double-check that you have copied the entire token correctly.
+2.  **Verify Token Type:** Ensure you created a **"classic"** Personal Access Token, not a "fine-grained" one.
+3.  **Check Scopes:** For private repositories, make sure your token has the full `repo` scope enabled.
+4.  **Check Expiration:** Ensure your token has not expired. You may need to generate a new one.
 
 #### **Q: The file tree is taking a long time to load or says it's "truncated."**
 

@@ -141,6 +141,9 @@ class GithubService {
     const repoDetailsResponse = await fetch(repoDetailsUrl, { headers });
     
     if (!repoDetailsResponse.ok) {
+        if (repoDetailsResponse.status === 401) {
+            throw new Error("Authentication failed. Please check if your GitHub API Key is valid and has the correct permissions.");
+        }
         if (repoDetailsResponse.status === 403 && repoDetailsResponse.headers.get('X-RateLimit-Remaining') === '0') {
              throw new Error("GitHub API rate limit exceeded. Please add a Personal Access Token to continue, or wait for the limit to reset.");
         }
@@ -157,6 +160,9 @@ class GithubService {
     const treeResponse = await fetch(treeUrl, { headers });
 
     if (!treeResponse.ok) {
+       if (treeResponse.status === 401) {
+            throw new Error("Authentication failed. Please check if your GitHub API Key is valid and has the correct permissions.");
+       }
        if (treeResponse.status === 403 && treeResponse.headers.get('X-RateLimit-Remaining') === '0') {
             throw new Error("GitHub API rate limit exceeded. Please add a Personal Access Token to continue.");
        }
