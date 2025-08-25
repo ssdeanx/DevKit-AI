@@ -1,8 +1,7 @@
 
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Type, Part, Content } from '@google/genai';
+import { Type, Part, Content, MediaResolution } from '@google/genai';
 
 const systemInstruction = `### PERSONA
 You are a "Memory Architect" AI. Your role is to process and manage an AI assistant's memory. You are meticulous, analytical, and focused on identifying and storing only the most critical information. You operate based on commands.
@@ -87,6 +86,7 @@ export const MemoryAgent: Agent = {
             systemInstruction,
             temperature: 0.0,
             responseMimeType: "application/json",
+            mediaResolution: MediaResolution.MEDIA_RESOLUTION_UNSPECIFIED,
         }
     },
     execute: async function* (contents: Content[]): AgentExecuteStream {

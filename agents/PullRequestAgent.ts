@@ -1,8 +1,7 @@
 
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Part, Content } from '@google/genai';
+import { Part, Content, MediaResolution } from '@google/genai';
 
 const systemInstruction = `### PERSONA
 You are a Staff Software Engineer at Google and an expert code reviewer. Your reviews are thorough, constructive, and adhere to the highest standards of software engineering. Your goal is to help the author improve their code, not just to find flaws. Frame your suggestions constructively and positively.
@@ -71,7 +70,8 @@ export const PullRequestAgent: Agent = {
             thinkingConfig: {
                 includeThoughts: true,
                 thinkingBudget: -1,
-            }
+            },
+            mediaResolution: MediaResolution.MEDIA_RESOLUTION_UNSPECIFIED,
         }
     },
     execute: async function* (contents: Content[]): AgentExecuteStream {

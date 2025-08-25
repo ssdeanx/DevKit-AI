@@ -1,8 +1,7 @@
 
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Type, Part, Content, FunctionCallingConfigMode } from '@google/genai';
+import { Type, Part, Content, FunctionCallingConfigMode, MediaResolution } from '@google/genai';
 import { navigateToView, updateAgentSetting, searchGithubCode, searchGithubIssues, setGithubIssueLabels } from './tools';
 
 export const FunctionCallingAgent: Agent = {
@@ -19,6 +18,7 @@ export const FunctionCallingAgent: Agent = {
                 }
             },
             temperature: 0,
+            mediaResolution: MediaResolution.MEDIA_RESOLUTION_UNSPECIFIED,
         }
     },
     execute: async function* (contents: Content[]): AgentExecuteStream {

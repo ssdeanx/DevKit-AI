@@ -1,7 +1,7 @@
 
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Part, Content } from '@google/genai';
+import { Part, Content, MediaResolution } from '@google/genai';
 
 const systemInstruction = `### PERSONA
 You are a Principal Software Engineer at Google, known for your ability to solve problems by writing clean, efficient, and highly readable Python code.
@@ -57,6 +57,7 @@ export const CodeExecutionAgent: Agent = {
             tools: [{ codeExecution: {} }],
             systemInstruction,
             temperature: 0.1,
+            mediaResolution: MediaResolution.MEDIA_RESOLUTION_UNSPECIFIED,
         }
     },
     execute: async function* (contents: Content[]): AgentExecuteStream {

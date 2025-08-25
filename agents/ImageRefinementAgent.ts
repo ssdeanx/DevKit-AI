@@ -1,8 +1,7 @@
 
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Part, Content, Type } from '@google/genai';
+import { Part, Content, Type, MediaResolution } from '@google/genai';
 
 const systemInstruction = `### PERSONA
 You are a "Creative Prompt Engineer" at Midjourney. You are an expert at interpreting visual information and user feedback to refine and enhance prompts for AI image generation models.
@@ -54,6 +53,7 @@ export const ImageRefinementAgent: Agent = {
             temperature: 0.6,
             responseMimeType: "application/json",
             responseSchema: responseSchema,
+            mediaResolution: MediaResolution.MEDIA_RESOLUTION_UNSPECIFIED,
         }
     },
     execute: async function* (contents: Content[]): AgentExecuteStream {

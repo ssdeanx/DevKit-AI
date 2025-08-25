@@ -18,6 +18,7 @@ import { SettingsIcon, CheckCircleIcon, WorkflowIcon, BotIcon } from '../compone
 import { agentMemoryService } from '../services/agent-memory.service';
 import { useToast } from '../context/ToastContext';
 import { agentPerformanceService } from '../services/agent-performance.service';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select';
 
 
 const SettingsSlider: React.FC<{
@@ -180,6 +181,30 @@ const AgentSettings: React.FC<{ agent: Agent, onConfigChange: (agentId: string, 
                             onCheckedChange={(checked) => handleThinkingConfigChange('includeThoughts', checked)}
                         />
                         <Label htmlFor={`thinking-thoughts-${agent.id}`}>Include Thought Process</Label>
+                    </div>
+                </div>
+
+                {/* Media Resolution Configuration */}
+                <div className="border-t pt-6">
+                    <h3 className="text-lg font-medium text-foreground mb-2">Media Resolution</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                        Higher resolutions for media inputs may provide better understanding and reasoning, but use more tokens.
+                    </p>
+                    <div className="space-y-2">
+                        <Label>Resolution Level</Label>
+                        <Select 
+                            value={agent.config.config?.mediaResolution ?? 'MEDIA_RESOLUTION_UNSPECIFIED'} 
+                            onValueChange={(v) => handleGenerationConfigChange('mediaResolution', v)}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select resolution" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="MEDIA_RESOLUTION_UNSPECIFIED">Off (Default)</SelectItem>
+                                <SelectItem value="MEDIA_RESOLUTION_LOW">Low</SelectItem>
+                                <SelectItem value="MEDIA_RESOLUTION_MEDIUM">Medium</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
 

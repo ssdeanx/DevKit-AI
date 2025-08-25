@@ -1,8 +1,7 @@
 
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Type, Part, Content } from '@google/genai';
+import { Type, Part, Content, MediaResolution } from '@google/genai';
 
 const AGENT_DEFINITIONS = [
     { name: 'ChatAgent', description: 'Answers general programming questions, explains code, or engages in conversation.' },
@@ -96,7 +95,8 @@ export const PlannerAgent: Agent = {
              thinkingConfig: {
                 includeThoughts: true,
                 thinkingBudget: -1,
-            }
+            },
+            mediaResolution: MediaResolution.MEDIA_RESOLUTION_UNSPECIFIED,
         }
     },
     execute: async function* (contents: Content[]): AgentExecuteStream {

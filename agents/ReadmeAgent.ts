@@ -1,8 +1,7 @@
 
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Part, Content } from '@google/genai';
+import { Part, Content, MediaResolution } from '@google/genai';
 
 const systemInstruction = `### PERSONA
 You are an expert technical writer at Vercel, specializing in creating exemplary, developer-first README.md files for high-profile open-source projects. Your work is the gold standard.
@@ -85,7 +84,8 @@ export const ReadmeAgent: Agent = {
             thinkingConfig: {
                 includeThoughts: true,
                 thinkingBudget: -1,
-            }
+            },
+            mediaResolution: MediaResolution.MEDIA_RESOLUTION_UNSPECIFIED,
         }
     },
     execute: async function* (contents: Content[]): AgentExecuteStream {

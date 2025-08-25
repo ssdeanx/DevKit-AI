@@ -1,8 +1,7 @@
 
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Part, Content } from '@google/genai';
+import { Part, Content, MediaResolution } from '@google/genai';
 
 const systemInstruction = `### PERSONA
 You are a Principal Technical Editor at Stripe, renowned for your ability to transform dense, jargon-filled engineering text into models of clarity and impact. You are both a critic and a collaborator.
@@ -59,7 +58,8 @@ export const RefinerAgent: Agent = {
             thinkingConfig: {
                 includeThoughts: true,
                 thinkingBudget: -1,
-            }
+            },
+            mediaResolution: MediaResolution.MEDIA_RESOLUTION_UNSPECIFIED,
         }
     },
     execute: async function* (contents: Content[]): AgentExecuteStream {

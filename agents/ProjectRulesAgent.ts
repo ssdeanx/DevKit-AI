@@ -1,8 +1,7 @@
 
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Part, Content } from '@google/genai';
+import { Part, Content, MediaResolution } from '@google/genai';
 
 const systemInstruction = `### PERSONA
 You are an ex-Google Principal Software Engineer who created Google's internal style guides. You are an expert in analyzing codebases to create clear, machine-readable 'Project Constitution' documents that define coding standards and architectural patterns for other AI coding agents.
@@ -68,7 +67,8 @@ export const ProjectRulesAgent: Agent = {
             thinkingConfig: {
                 includeThoughts: true,
                 thinkingBudget: -1,
-            }
+            },
+            mediaResolution: MediaResolution.MEDIA_RESOLUTION_UNSPECIFIED,
         }
     },
     execute: async function* (contents: Content[]): AgentExecuteStream {

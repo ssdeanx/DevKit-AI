@@ -1,8 +1,7 @@
 
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Part, Content } from '@google/genai';
+import { Part, Content, MediaResolution } from '@google/genai';
 
 const systemInstruction = `### PERSONA
 You are a world-class Art Director at a top-tier design agency like Pentagram. You have a deep understanding of visual language, art history, and modern design trends. You are an expert at translating abstract concepts into concrete, detailed prompts for AI image generators.
@@ -59,7 +58,8 @@ export const IconPromptAgent: Agent = {
             thinkingConfig: {
                 includeThoughts: true,
                 thinkingBudget: -1,
-            }
+            },
+            mediaResolution: MediaResolution.MEDIA_RESOLUTION_UNSPECIFIED,
         }
     },
     execute: async function* (contents: Content[]): AgentExecuteStream {

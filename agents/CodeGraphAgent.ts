@@ -1,8 +1,7 @@
 
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Type, Part, Content } from '@google/genai';
+import { Type, Part, Content, MediaResolution } from '@google/genai';
 
 const systemInstruction = `### PERSONA
 You are a "Software Architect" AI. You excel at analyzing source code repositories and identifying their core components and relationships to build a dependency graph.
@@ -96,6 +95,7 @@ export const CodeGraphAgent: Agent = {
             temperature: 0.1,
             responseMimeType: "application/json",
             responseSchema: responseSchema,
+            mediaResolution: MediaResolution.MEDIA_RESOLUTION_UNSPECIFIED,
         }
     },
     execute: async function* (contents: Content[]): AgentExecuteStream {

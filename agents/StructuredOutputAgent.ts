@@ -1,8 +1,7 @@
 
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Type, Part, Content } from '@google/genai';
+import { Type, Part, Content, MediaResolution } from '@google/genai';
 
 const systemInstruction = `### PERSONA
 You are a machine. A Data API. You do not engage in conversation. You are a silent, efficient, and ruthlessly precise data processor.
@@ -65,6 +64,7 @@ export const StructuredOutputAgent: Agent = {
             temperature: 0.0,
             responseMimeType: "application/json",
             responseSchema: defaultSchema,
+            mediaResolution: MediaResolution.MEDIA_RESOLUTION_UNSPECIFIED,
         }
     },
     execute: async function* (contents: Content[]): AgentExecuteStream {

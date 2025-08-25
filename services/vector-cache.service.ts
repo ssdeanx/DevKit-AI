@@ -1,3 +1,4 @@
+
 import { get, set, del, keys, clear } from 'idb-keyval';
 import { StagedFile } from './github.service';
 import { chunkText } from '../lib/text';
@@ -49,7 +50,7 @@ class VectorCacheService {
 
     private async _getAllChunks(): Promise<VectorChunk[]> {
         const allKeys = await keys();
-        const chunkKeys = allKeys.filter(key => typeof key === 'string' && key.startsWith('vector-chunk::'));
+        const chunkKeys = allKeys.filter((key): key is string => typeof key === 'string' && key.startsWith('vector-chunk::'));
         const allChunkArrays = await Promise.all(chunkKeys.map(key => get<VectorChunk[]>(key)));
         return allChunkArrays.flat().filter(Boolean) as VectorChunk[];
     }

@@ -1,8 +1,7 @@
 
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
-import { Part, Content, FunctionCallingConfigMode } from '@google/genai';
+import { Part, Content, FunctionCallingConfigMode, MediaResolution } from '@google/genai';
 import { searchGithubIssues, setGithubIssueLabels } from './tools';
 
 const systemInstruction = `### PERSONA
@@ -41,7 +40,8 @@ export const IssueLabelAgent: Agent = {
             thinkingConfig: {
                 includeThoughts: true,
                 thinkingBudget: 8192,
-            }
+            },
+            mediaResolution: MediaResolution.MEDIA_RESOLUTION_UNSPECIFIED,
         }
     },
     execute: async function* (contents: Content[], fullHistory?: Content[]): AgentExecuteStream {
