@@ -1,4 +1,3 @@
-
 # Core Concepts: The Agentic Workflow
 
 DevKit AI Pro is built on an **agentic architecture**. Instead of a single, monolithic AI model, your requests are handled by a team of specialized AI agents, each with a unique purpose, persona, and skillset. Understanding this workflow is key to mastering the application.
@@ -53,7 +52,7 @@ Based on its analysis, the Orchestrator selects the single best agent for the jo
 The **Supervisor** acts as the project manager for the AI team. Its responsibilities include:
 
 1.  **Context Assembly:** It gathers all necessary context for the task, including:
-    -   Content from your staged GitHub files.
+    -   Content from your staged GitHub files via the advanced RAG system.
     -   Recent conversation history (short-term memory).
     -   Learned facts and feedback from past sessions (long-term memory).
 2.  **Agent Delegation:** It receives the agent choice from the Orchestrator and formally assigns the task.
@@ -77,5 +76,22 @@ The system uses two types of memory to improve its performance over time.
 -   **Short-Term Memory:** The AI remembers the last few turns of your current conversation, allowing it to understand follow-up questions and maintain a natural conversational flow.
 -   **Long-Term Memory:** When you provide feedback (👍/👎) on an AI's response, the `Supervisor` triggers a process of reflection. The AI analyzes the feedback and the preceding conversation to extract a key takeaway. This "memory" is stored and retrieved in future sessions to avoid repeating mistakes and remember your preferences. You can view these learned memories in the **Agent Memory** tab.
 
+### 4. Advanced RAG & Vector Search
+
+When you stage a file, DevKit AI Pro doesn't just store its text. It initiates a sophisticated **Retrieval-Augmented Generation (RAG)** pipeline to create a searchable knowledge base of your code.
+
+1.  **Intelligent Filtering**: Before indexing, common non-code files and directories (like `.git`, `node_modules`, `dist`, `build`, `.lock` files) are automatically ignored. This keeps the vector cache clean and relevant.
+2.  **Chunking:** The content of a staged file is broken down into small, overlapping text chunks.
+3.  **Embedding:** Each chunk is sent to the Gemini embedding model (`gemini-embedding-001`). We use several optimizations for production-grade quality:
+    -   **Task Type:** Code chunks are embedded using the `RETRIEVAL_DOCUMENT` task type.
+    -   **Optimal Dimensions:** We use **1536 dimensions** for the embedding vector, which provides the best balance of quality and performance according to MTEB benchmarks.
+    -   **Normalization:** The resulting vectors are **normalized** before being stored, a critical step for ensuring high-accuracy similarity search.
+4.  **Vector Cache:** These vectors and their corresponding text chunks are stored in a local, in-browser vector database.
+5.  **Retrieval:** When you ask a question about your code, your query is embedded using the specialized `CODE_RETRIEVAL_QUERY` task type. This creates a vector specifically optimized for finding relevant code.
+6.  **Similarity Search:** The application performs a lightning-fast cosine similarity search on the vector cache to find the most relevant code chunks.
+7.  **Context Assembly:** The top-matching chunks are retrieved and injected into the final prompt for the AI agent.
+
+This advanced RAG system means that even if you stage an entire repository, the AI receives a small, highly-focused, and semantically relevant context, leading to faster, more accurate, and more cost-effective answers.
+
 ---
-*Version 1.3.0*
+*Version 1.8.0*

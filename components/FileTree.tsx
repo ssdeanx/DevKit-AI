@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { FileNode, StagedFile } from '../services/github.service';
 import { FileTreeNode } from './FileTreeNode';
@@ -5,6 +6,7 @@ import { FileTreeNode } from './FileTreeNode';
 interface FileTreeProps {
     tree: FileNode[];
     stagedFiles: StagedFile[];
+    indexedFiles: Set<string>;
     onStageFile: (path: string) => void;
     onStageFolder: (path: string) => void;
     onUnstageFolder: (path: string) => void;

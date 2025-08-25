@@ -1,4 +1,3 @@
-
 # Meet the Agents: Your Specialized AI Team
 
 The power of DevKit AI Pro lies in its roster of specialized agents. Each agent is an AI with a unique persona, a specific task, and a tailored configuration. The **Orchestrator** automatically selects the best agent for your request, but understanding their roles can help you craft more effective prompts.
@@ -30,6 +29,7 @@ mindmap
       IconPromptAgent
       ImageRefinementAgent
       MemoryAgent
+      ContextRetrievalAgent
 ```
 
 ---
@@ -81,7 +81,15 @@ mindmap
 | :------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`IconPromptAgent`**       | An expert art director. It takes a simple idea (e.g., "a logo for a space company") and generates three distinct, highly detailed, professional prompts for an AI image generator. |
 | **`ImageRefinementAgent`**  | A multimodal creative assistant. It analyzes a generated image and your text feedback to create a new, improved prompt, enabling an iterative design workflow. |
+
+---
+
+### System & Utility Agents
+
+| Agent Name                | Purpose & Best Use Case                                                                                                                                                                   |
+| :------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`ContextRetrievalAgent`** | A background agent that embeds your query and performs a semantic search against the vector cache of your staged code to find the most relevant code chunks for the primary agent to use. |
 | **`MemoryAgent`**           | A system agent that works in the background. It's responsible for summarizing conversations and checking for novel information to store in long-term memory. It is not intended for direct user interaction. |
 
 ---
-*Version 1.4.0*
+*Version 1.6.0*

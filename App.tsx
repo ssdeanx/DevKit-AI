@@ -125,31 +125,31 @@ const App: React.FC = () => {
   return (
     <MotionConfig reducedMotion="user">
         <SettingsProvider>
-        <GithubProvider>
             <ToastProvider>
-                <div className="flex h-screen bg-background text-foreground font-sans relative overflow-hidden p-4 gap-4">
-                    <div className="background-noise"></div>
-                    <Sidebar activeView={activeView} setActiveView={setActiveView} />
-                    <main className="flex-1 flex flex-col overflow-hidden z-10 glass-effect rounded-lg">
-                        <AnimatePresence mode="wait">
-                             <motion.div
-                                key={activeView}
-                                variants={viewVariants}
-                                initial="initial"
-                                animate="animate"
-                                exit="exit"
-                                transition={{ duration: 0.2, ease: 'easeInOut' }}
-                                className="flex-1 flex flex-col overflow-y-auto custom-scrollbar"
-                                id="main-scroll-container"
-                             >
-                                {renderView()}
-                            </motion.div>
-                        </AnimatePresence>
-                    </main>
-                    <StagedFilesIndicator />
-                </div>
+                <GithubProvider>
+                    <div className="flex h-screen bg-background text-foreground font-sans relative overflow-hidden p-4 gap-4">
+                        <div className="background-noise"></div>
+                        <Sidebar activeView={activeView} setActiveView={setActiveView} />
+                        <main className="flex-1 flex flex-col overflow-hidden z-10 glass-effect rounded-lg">
+                            <AnimatePresence mode="wait">
+                                 <motion.div
+                                    key={activeView}
+                                    variants={viewVariants}
+                                    initial="initial"
+                                    animate="animate"
+                                    exit="exit"
+                                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                                    className="flex-1 flex flex-col overflow-y-auto custom-scrollbar"
+                                    id="main-scroll-container"
+                                 >
+                                    {renderView()}
+                                </motion.div>
+                            </AnimatePresence>
+                        </main>
+                        <StagedFilesIndicator />
+                    </div>
+                </GithubProvider>
             </ToastProvider>
-        </GithubProvider>
         </SettingsProvider>
     </MotionConfig>
   );

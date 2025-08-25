@@ -1,4 +1,5 @@
 
+
 import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
 import { GithubContext } from '../context/GithubContext';
 import { GithubIcon, FilesIcon, FileMinusIcon } from '../components/icons';
@@ -9,6 +10,47 @@ import { Button } from '../components/ui/Button';
 import { Label } from '../components/ui/Label';
 import ViewHeader from '../components/ViewHeader';
 import { FileTree } from '../components/FileTree';
+import { useToast } from '../context/ToastContext';
+import { cn } from '../lib/utils';
+
+const IndexingProgressBar: React.FC<{ status: { total: number; completed: number; currentFile: string; chunksTotal: number; chunksCompleted: number; } }> = ({ status }) => {
+    if (status.total === 0) return null;
+
+    const fileProgress = status.total > 0 ? (status.completed / status.total) * 100 : 0;
+    const chunkProgress = status.chunksTotal > 0 ? (status.chunksCompleted / status.chunksTotal) * 100 : 0;
+    const isComplete = status.completed === status.total && status.total > 0;
+
+    const getStatusText = () => {
+        if (isComplete) return `Indexing complete! ${status.total} files processed.`;
+        if (!status.currentFile) return "Preparing to index...";
+        
+        let text = `File ${status.completed + 1}/${status.total}: ${status.currentFile}`;
+        if (status.chunksTotal > 0) {
+            text += ` (chunk ${status.chunksCompleted}/${status.chunksTotal})`;
+        }
+        return text;
+    };
+
+
+    return (
+        <div className="p-2 space-y-1 text-center animate-in fade-in-scale">
+            <p className="text-xs text-muted-foreground truncate" title={getStatusText()}>
+                {getStatusText()}
+            </p>
+            <div className="w-full bg-secondary rounded-full h-1.5 overflow-hidden relative">
+                <div 
+                    className={cn("h-full rounded-full absolute top-0 left-0 bg-primary/30")}
+                    style={{ width: `${fileProgress}%`, transition: 'width 0.2s ease-out' }}
+                />
+                 <div 
+                    className={cn("h-full rounded-full absolute top-0 left-0", isComplete ? "bg-success" : "bg-primary")}
+                    style={{ width: `calc(${fileProgress}% - ${100/status.total}% + ${chunkProgress/status.total}%)`, transition: 'width 0.2s ease-out' }}
+                />
+            </div>
+        </div>
+    );
+};
+
 
 const StagedFiles: React.FC<{
     files: StagedFile[];
@@ -41,20 +83,28 @@ const GithubInspectorView: React.FC = () => {
     const { 
         repoUrl, fileTree, isLoading, error, fetchRepo, 
         stagedFiles, stageFile, unstageFile, stageFolder, unstageFolder,
-        stageAllFiles, unstageAllFiles, apiKey, setApiKey
+        stageAllFiles, unstageAllFiles, apiKey, setApiKey, getIndexedFiles,
+        indexingStatus
     } = useContext(GithubContext);
 
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
     const [isAllExpanded, setIsAllExpanded] = useState(false);
+    const [indexedFiles, setIndexedFiles] = useState<Set<string>>(new Set());
+    const { toast } = useToast();
+
+     useEffect(() => {
+        const interval = setInterval(async () => {
+            const files = await getIndexedFiles();
+            setIndexedFiles(files);
+        }, 2000); // Poll for indexed files status
+        return () => clearInterval(interval);
+    }, [getIndexedFiles]);
 
     const toggleFolder = useCallback((path: string) => {
         setExpandedFolders(prev => {
             const newSet = new Set(prev);
-            if (newSet.has(path)) {
-                newSet.delete(path);
-            } else {
-                newSet.add(path);
-            }
+            if (newSet.has(path)) newSet.delete(path);
+            else newSet.add(path);
             return newSet;
         });
     }, []);
@@ -105,6 +155,11 @@ const GithubInspectorView: React.FC = () => {
         }
     };
     
+    const handleStageAll = () => {
+        stageAllFiles();
+        toast({ title: "Staging All Files", description: "All files are being indexed for context. This may take a moment." });
+    };
+
     return (
         <div className="flex flex-col h-full bg-background overflow-hidden">
             <ViewHeader
@@ -116,33 +171,17 @@ const GithubInspectorView: React.FC = () => {
                 {/* Left Column */}
                 <div className="flex flex-col gap-6 overflow-hidden">
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Load Repository</CardTitle>
-                        </CardHeader>
+                        <CardHeader><CardTitle>Load Repository</CardTitle></CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="space-y-2">
+                             <div className="space-y-2">
                                 <Label htmlFor="repo-url">Repository URL</Label>
-                                <Input
-                                    id="repo-url"
-                                    type="text"
-                                    value={urlInput}
-                                    onChange={(e) => setUrlInput(e.target.value)}
-                                    placeholder="e.g., https://github.com/owner/repo"
-                                />
+                                <Input id="repo-url" type="text" value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="e.g., https://github.com/owner/repo" />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="api-key">GitHub API Key (Optional but Recommended)</Label>
-                                <Input
-                                    id="api-key"
-                                    type="password"
-                                    value={apiKey}
-                                    onChange={(e) => setApiKey(e.target.value)}
-                                    placeholder="Enter personal access token for higher rate limits & private repos"
-                                />
+                                <Label htmlFor="api-key">GitHub API Key (Optional)</Label>
+                                <Input id="api-key" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Enter PAT for higher rate limits & private repos" />
                             </div>
-                            <Button onClick={handleFetch} disabled={isLoading} size="lg" className="w-full">
-                                {isLoading ? 'Loading Repository...' : 'Load Repository'}
-                            </Button>
+                            <Button onClick={handleFetch} disabled={isLoading} size="lg" className="w-full">{isLoading ? 'Loading...' : 'Load Repository'}</Button>
                              {error && <p className="text-sm text-destructive mt-4 p-3 bg-destructive/10 rounded-md">{error}</p>}
                         </CardContent>
                     </Card>
@@ -151,21 +190,16 @@ const GithubInspectorView: React.FC = () => {
                             <div className="flex justify-between items-center">
                                 <div className="space-y-1.5">
                                     <CardTitle>Staged Files ({stagedFiles.length})</CardTitle>
-                                    <CardDescription>The content of these files will be sent to context-aware agents.</CardDescription>
+                                    <CardDescription>These files are indexed in the vector cache for AI context.</CardDescription>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <Button size="sm" variant="outline" onClick={() => stageAllFiles()} disabled={!fileTree || stagedFiles.length === totalFiles}>
-                                        <FilesIcon className="w-4 h-4 mr-2" />
-                                        Stage All
-                                    </Button>
-                                     <Button size="sm" variant="outline" onClick={unstageAllFiles} disabled={stagedFiles.length === 0}>
-                                        <FileMinusIcon className="w-4 h-4 mr-2" />
-                                        Unstage All
-                                    </Button>
+                                    <Button size="sm" variant="outline" onClick={handleStageAll} disabled={!fileTree || stagedFiles.length === totalFiles || indexingStatus.total > 0}><FilesIcon className="w-4 h-4 mr-2" />Stage All</Button>
+                                     <Button size="sm" variant="outline" onClick={unstageAllFiles} disabled={stagedFiles.length === 0}><FileMinusIcon className="w-4 h-4 mr-2" />Unstage All</Button>
                                 </div>
                             </div>
                         </CardHeader>
-                        <CardContent className="flex-1 overflow-hidden p-2">
+                        <CardContent className="flex-1 flex flex-col overflow-hidden p-2">
+                            <IndexingProgressBar status={indexingStatus} />
                              <StagedFiles files={stagedFiles} onUnstage={unstageFile} />
                         </CardContent>
                     </Card>
@@ -180,32 +214,24 @@ const GithubInspectorView: React.FC = () => {
                                     <CardTitle>Repository Structure</CardTitle>
                                     {repoUrl && <CardDescription className="font-mono text-primary/80">{repoUrl.split('/').slice(-2).join('/')}</CardDescription>}
                                 </div>
-                                {fileTree && (
-                                    <div className="flex gap-2">
-                                        <Button variant="outline" size="sm" onClick={isAllExpanded ? collapseAll : expandAll}>
-                                            {isAllExpanded ? "Collapse All" : "Expand All"}
-                                        </Button>
-                                    </div>
-                                )}
+                                {fileTree && (<div className="flex gap-2"><Button variant="outline" size="sm" onClick={isAllExpanded ? collapseAll : expandAll}>{isAllExpanded ? "Collapse All" : "Expand All"}</Button></div>)}
                             </div>
                         </CardHeader>
                         <CardContent className="flex-1 overflow-y-auto custom-scrollbar">
                             {isLoading && (
                                 <div className="flex items-center justify-center h-full text-muted-foreground">
-                                    <svg className="animate-spin h-8 w-8 text-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
+                                    <svg className="animate-spin h-8 w-8 text-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                 </div>
                             )}
                             
                             {!isLoading && fileTree && (
-                                <FileTree 
-                                    tree={fileTree} 
-                                    stagedFiles={stagedFiles} 
-                                    onStageFile={stageFile} 
-                                    onStageFolder={stageFolder} 
+                                <FileTree
+                                    tree={fileTree}
+                                    stagedFiles={stagedFiles}
+                                    indexedFiles={indexedFiles}
+                                    onStageFile={stageFile}
                                     onUnstageFolder={unstageFolder}
+                                    onStageFolder={stageFolder}
                                     expandedFolders={expandedFolders}
                                     onToggleFolder={toggleFolder}
                                 />

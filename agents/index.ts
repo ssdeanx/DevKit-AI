@@ -1,4 +1,3 @@
-
 import { Agent } from "./types";
 import { ChatAgent } from "./ChatAgent";
 import { ReadmeAgent } from "./ReadmeAgent";
@@ -16,6 +15,7 @@ import { MemoryAgent } from "./MemoryAgent";
 import { PullRequestAgent } from "./PullRequestAgent";
 import { IssueLabelAgent } from "./IssueLabelAgent";
 import { ImageRefinementAgent } from "./ImageRefinementAgent";
+import { ContextRetrievalAgent } from "./ContextRetrievalAgent";
 
 export const initialAgents: Agent[] = [
     ChatAgent,
@@ -34,6 +34,7 @@ export const initialAgents: Agent[] = [
     FunctionCallingAgent,
     CodeGraphAgent,
     MemoryAgent,
+    ContextRetrievalAgent,
 ];
 
 export const defaultAgent = ChatAgent;

@@ -1,5 +1,3 @@
-
-
 import { orchestrator } from './orchestrator';
 import { Agent, AgentExecuteStream, WorkflowPlan, TokenUsage } from '../agents/types';
 import { agentService } from './agent.service';
@@ -13,6 +11,8 @@ import { shortTermMemoryService } from './short-term-memory.service';
 import { MemoryAgent } from '../agents/MemoryAgent';
 import { agentPerformanceService } from './agent-performance.service';
 import { v4 as uuidv4 } from 'uuid';
+import { vectorCacheService } from './vector-cache.service';
+import { ContextRetrievalAgent } from '../agents/ContextRetrievalAgent';
 
 interface FullGitContext {
     fileTree: FileNode[] | null;
@@ -105,38 +105,47 @@ class Supervisor {
     retryContext?: RetryContext,
     initialContents?: Content[]
   ): Promise<{ agent: Agent; stream: AgentExecuteStream }> {
-    try {
-        this.apiKey = githubContext.apiKey || ''; // Store apiKey for this request
-        let selectedAgent: Agent;
-        const effectivePrompt = retryContext ? retryContext.originalPrompt : prompt;
-
-        if (forceAgentId) {
+    this.apiKey = githubContext.apiKey || '';
+    const effectivePrompt = retryContext ? retryContext.originalPrompt : prompt;
+    
+    let selectedAgent: Agent;
+    if (forceAgentId) {
         const foundAgent = agentService.getAgents().find(a => a.id === forceAgentId);
-        if (!foundAgent) {
-            throw new Error(`Forced agent with ID ${forceAgentId} not found.`);
-        }
+        if (!foundAgent) throw new Error(`Forced agent with ID ${forceAgentId} not found.`);
         selectedAgent = foundAgent;
         console.log(`Supervisor: Agent execution forced to ${selectedAgent.name}`);
-        } else {
+    } else {
         const orchestratorResult = await orchestrator.selectAgent(effectivePrompt);
         selectedAgent = orchestratorResult.agent;
         console.log(`Supervisor: Orchestrator selected agent ${selectedAgent.name}. Reasoning: ${orchestratorResult.reasoning}`);
-        }
+    }
+    
+    const stream = this._createExecutionStream(selectedAgent, effectivePrompt, githubContext, callbacks, retryContext, initialContents);
 
+    return { agent: selectedAgent, stream };
+  }
+
+  private async *_createExecutionStream(
+    selectedAgent: Agent,
+    prompt: string,
+    githubContext: FullGitContext & { apiKey?: string },
+    callbacks: { setActiveView: (view: ViewName) => void },
+    retryContext?: RetryContext,
+    initialContents?: Content[]
+  ): AgentExecuteStream {
+    try {
         let contextParts: Part[] = [];
         
-        // 1. Add Short-Term Memory (current conversation)
-        const recentHistory = shortTermMemoryService.getHistory(5); // Get last 5 turns
+        const recentHistory = shortTermMemoryService.getHistory(5);
         if (recentHistory.length > 0) {
             let stmContext = `<CONVERSATION_HISTORY>
 This is the recent history of our current conversation. Use it to understand the immediate context.
-${recentHistory.map(entry => `[${entry.author === 'user' ? 'USER' : 'AI'}]: ${cleanText(entry.content)}`).join('\n')}
+${recentHistory.map(entry => `[${entry.author === 'user' ? 'AI' : 'USER'}]: ${cleanText(entry.content)}`).join('\n')}
 </CONVERSATION_HISTORY>`;
             contextParts.push({ text: stmContext });
         }
 
-        // 2. Add Long-Term Memory (facts & feedback)
-        const relevantMemories = await agentMemoryService.searchMemories(selectedAgent.id, effectivePrompt);
+        const relevantMemories = await agentMemoryService.searchMemories(selectedAgent.id, prompt);
         if (relevantMemories.length > 0) {
             let ltmContext = `<LONG_TERM_MEMORY>
 This is your personal memory of key facts and user feedback from past sessions. Use it to improve your performance and avoid past mistakes.
@@ -145,7 +154,6 @@ ${relevantMemories.map(mem => `- [${mem.type.toUpperCase()}] ${mem.content}`).jo
             contextParts.push({ text: ltmContext });
         }
 
-        // 3. Add retry context if it exists
         if (retryContext) {
             contextParts.push({ text: `<RETRY_CONTEXT>
 CRITICAL: Your previous attempt to answer this failed. You are re-attempting the task based on direct user feedback.
@@ -153,55 +161,43 @@ CRITICAL: Your previous attempt to answer this failed. You are re-attempting the
 Analyze this feedback carefully to improve your response and avoid the previous error.
 </RETRY_CONTEXT>` });
         }
-
-        // 4. Add GitHub context
-        if (selectedAgent.acceptsContext && (githubContext.fileTree || githubContext.stagedFiles.length > 0)) {
-            console.log(`Supervisor: Adding GitHub context for agent ${selectedAgent.name}.`);
-            let gitContextString = "<GITHUB_CONTEXT>\nThis is your primary source of truth for the user's project.\n\n";
-
-            if (githubContext.fileTree && githubContext.fileTree.length > 0) {
-                gitContextString += `<FILE_STRUCTURE>\n${formatFileTree(githubContext.fileTree)}\n</FILE_STRUCTURE>\n\n`;
+        
+        if (selectedAgent.acceptsContext) {
+            yield { type: 'thought', content: 'Searching vector cache for relevant code snippets...', agentName: 'ContextRetriever' };
+            const retrievalAgent = agentService.getAgents().find(a => a.id === ContextRetrievalAgent.id)!;
+            const retrievalStream = retrievalAgent.execute([{ role: 'user', parts: [{ text: prompt }] }]);
+            let retrievedContext = '';
+            for await (const chunk of retrievalStream) {
+                if (chunk.type === 'content') retrievedContext += chunk.content;
             }
-            
-            if (githubContext.stagedFiles.length > 0) {
-                gitContextString += "<STAGED_FILES>\n";
-                for (const file of githubContext.stagedFiles) {
-                    const cleanedContent = cleanText(file.content);
-                    gitContextString += `<FILE path="${file.path}">\n${cleanedContent}\n</FILE>\n\n`;
-                }
-                gitContextString += "</STAGED_FILES>\n";
+
+            if (retrievedContext.trim()) {
+                 console.log(`Supervisor: Adding RAG context for agent ${selectedAgent.name}.`);
+                 contextParts.push({ text: retrievedContext });
+                 yield { type: 'thought', content: `Found ${retrievedContext.split('---').length - 1} relevant code chunk(s). Assembling context...`, agentName: 'ContextRetriever' };
+            } else {
+                 yield { type: 'thought', content: `No highly relevant code found in vector cache. Proceeding with general knowledge.`, agentName: 'ContextRetriever' };
             }
-            gitContextString += "</GITHUB_CONTEXT>";
-            contextParts.push({ text: gitContextString });
         }
-
+       
         const finalPromptParts: Part[] = [
             ...contextParts,
-            { text: `Based on all the context provided, please handle the following user request:\n\n<USER_REQUEST>\n${effectivePrompt}\n</USER_REQUEST>` }
+            { text: `Based on all the context provided, please handle the following user request:\n\n<USER_REQUEST>\n${prompt}\n</USER_REQUEST>` }
         ];
         
         const finalContents: Content[] = initialContents 
-            ? initialContents
+            ? initialContents 
             : [{ role: 'user', parts: finalPromptParts }];
 
         if (selectedAgent.id === PlannerAgent.id) {
-            console.log(`Supervisor: Executing multi-step plan with ${selectedAgent.name}.`);
-            const stream = this.executePlan(selectedAgent, finalContents, callbacks, contextParts, effectivePrompt);
-            return { agent: selectedAgent, stream };
+            yield* this.executePlan(selectedAgent, finalContents, callbacks, contextParts, prompt);
         } else {
-            console.log(`Supervisor: Executing single agent ${selectedAgent.name} with function calling.`);
-            const stream = this.executeAgentWithFunctionCalling(selectedAgent, finalContents, callbacks);
-            return { agent: selectedAgent, stream };
+            yield* this.executeAgentWithFunctionCalling(selectedAgent, finalContents, callbacks);
         }
+
     } catch(error) {
-        console.error("Supervisor: A critical error occurred in handleRequest:", error);
-        // This is a fallback for errors happening *before* streaming begins.
-        // We create a dummy agent and a stream that yields a single error message.
-        const dummyAgent = agentService.getAgents().find(a => a.id === 'chat-agent')!;
-        const stream = async function* (): AgentExecuteStream {
-            yield { type: 'content', content: `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`, agentName: 'System' };
-        }();
-        return { agent: dummyAgent, stream };
+        console.error("Supervisor: A critical error occurred in _createExecutionStream:", error);
+        yield { type: 'content', content: `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`, agentName: 'System' };
     }
   }
 

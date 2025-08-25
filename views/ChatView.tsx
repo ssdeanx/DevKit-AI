@@ -159,6 +159,7 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
         let finalThoughts = '';
         let finalFunctionCall: FunctionCall | undefined = undefined;
         let finalSources: GroundingChunk[] | undefined = undefined;
+        let finishReason = '';
 
         for await (const chunk of stream) {
             if (chunk.type === 'runStart' && chunk.runId) {
@@ -193,10 +194,17 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
 
     } catch (error) {
         console.error("ChatView: Error during AI turn:", error);
+        let content = error instanceof Error ? error.message : 'Sorry, I encountered an error. Please try again.';
+        
+        // Specific error handling for token limits
+        if (error instanceof Error && (error.message.includes('token') || error.message.includes('finishReason: MAX_TOKENS'))) {
+            content = `The response was cut short because it reached the token limit. You can increase the "Max Output Tokens" for the **${finalAgentName || 'current agent'}** in the **Settings** view to allow for longer responses.`;
+        }
+        
         const errorMessage: Message = {
             id: `err-${Date.now()}`,
             author: 'ai',
-            content: error instanceof Error ? error.message : 'Sorry, I encountered an error. Please try again.',
+            content: content,
             agentName: 'System',
             feedback: null
         };

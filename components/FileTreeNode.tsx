@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileNode, StagedFile } from '../services/github.service';
 import { cn } from '../lib/utils';
 import { Button } from './ui/Button';
-import { ChevronRightIcon, PlusCircleIcon, XCircleIcon, CheckCircleIcon } from './icons';
+import { ChevronRightIcon, PlusCircleIcon, XCircleIcon, CheckCircleIcon, DatabaseIcon } from './icons';
 
 // Helper function to get all file paths from a directory node
 const getFilePathsFromNode = (node: FileNode): string[] => {
@@ -32,6 +32,7 @@ interface FileTreeNodeProps {
     node: FileNode;
     level: number;
     stagedFiles: StagedFile[];
+    indexedFiles: Set<string>;
     onStageFile: (path: string) => void;
     onStageFolder: (path: string) => void;
     onUnstageFolder: (path: string) => void;
@@ -43,6 +44,7 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({
     node,
     level,
     stagedFiles,
+    indexedFiles,
     onStageFile,
     onStageFolder,
     onUnstageFolder,
@@ -96,6 +98,7 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({
                         node={child}
                         level={level + 1}
                         stagedFiles={stagedFiles}
+                        indexedFiles={indexedFiles}
                         onStageFile={onStageFile}
                         onStageFolder={onStageFolder}
                         onUnstageFolder={onUnstageFolder}
@@ -107,8 +110,8 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({
         );
     }
 
-    // File node rendering
     const isStaged = stagedFiles.some(f => f.path === node.path);
+    const isIndexed = indexedFiles.has(node.path);
 
     return (
         <div key={node.path}
@@ -117,19 +120,24 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({
         >
             <span className="mr-2">📄</span>
             <span className="flex-1 truncate" title={node.name}>{node.name}</span>
-            {isStaged ? (
-                <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0" title="File is staged" />
-            ) : (
-                <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                    onClick={(e) => { e.stopPropagation(); onStageFile(node.path); }}
-                    data-tooltip="Stage file for context"
-                >
-                    <PlusCircleIcon className="w-4 h-4 text-muted-foreground" />
-                </Button>
-            )}
+            <div className="flex items-center flex-shrink-0">
+                {isStaged && (
+                    <div data-tooltip={isIndexed ? "File is indexed in vector cache" : "Indexing file for context..."}>
+                        <DatabaseIcon className={cn("w-4 h-4", isIndexed ? "text-success" : "text-muted-foreground animate-pulse")} />
+                    </div>
+                )}
+                {!isStaged && (
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => { e.stopPropagation(); onStageFile(node.path); }}
+                        data-tooltip="Stage file for context"
+                    >
+                        <PlusCircleIcon className="w-4 h-4 text-muted-foreground" />
+                    </Button>
+                )}
+            </div>
         </div>
     );
 });
