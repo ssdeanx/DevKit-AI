@@ -16,6 +16,7 @@ import { PullRequestAgent } from "./PullRequestAgent";
 import { IssueLabelAgent } from "./IssueLabelAgent";
 import { ImageRefinementAgent } from "./ImageRefinementAgent";
 import { ContextRetrievalAgent } from "./ContextRetrievalAgent";
+import { ContextOptimizerAgent } from "./ContextOptimizerAgent";
 
 export const initialAgents: Agent[] = [
     ChatAgent,
@@ -35,6 +36,7 @@ export const initialAgents: Agent[] = [
     CodeGraphAgent,
     MemoryAgent,
     ContextRetrievalAgent,
+    ContextOptimizerAgent,
 ];
 
 export const defaultAgent = ChatAgent;

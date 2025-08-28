@@ -37,6 +37,7 @@ const MyPullRequests: React.FC = () => {
     });
 
     const handleSelectPr = async (pr: PullRequestSummary) => {
+        if (!apiKey) return;
         setSelectedPr(pr);
         reviewOperation.reset();
         const files = await fetchPrFiles.execute(pr.url, apiKey);
@@ -54,7 +55,13 @@ const MyPullRequests: React.FC = () => {
                                 <CardTitle>My Open PRs</CardTitle>
                                 <CardDescription>Assigned to you.</CardDescription>
                             </div>
-                            <Button onClick={() => fetchPrs(apiKey)} disabled={isLoading} size="sm" variant="outline">
+                            <Button 
+                                onClick={() => fetchPrs(apiKey)} 
+                                disabled={isLoading || !apiKey} 
+                                size="sm" 
+                                variant="outline"
+                                data-tooltip={!apiKey ? "A GitHub API key is required." : "Refresh pull requests"}
+                            >
                                 <RefreshCwIcon className="w-4 h-4 mr-2"/>
                                 Refresh
                             </Button>
@@ -63,21 +70,29 @@ const MyPullRequests: React.FC = () => {
                     <CardContent className="flex-1 overflow-y-auto custom-scrollbar">
                         {isLoading && <p>Loading your pull requests...</p>}
                         {error && <p className="text-destructive">{error}</p>}
-                        {!isLoading && !prs && <p>Click Refresh to load your assigned pull requests.</p>}
-                        {prs && prs.length === 0 && <p>You have no open pull requests assigned to you.</p>}
-                        {prs && prs.length > 0 && (
-                            <div className="space-y-2">
-                                {prs.map(pr => (
-                                    <div
-                                        key={pr.url}
-                                        className={cn('p-3 border rounded-lg hover:bg-accent cursor-pointer', selectedPr?.url === pr.url && 'bg-accent border-primary/50')}
-                                        onClick={() => handleSelectPr(pr)}
-                                    >
-                                        <p className="font-semibold">{pr.title}</p>
-                                        <p className="text-sm text-muted-foreground">{pr.repo} #{pr.number}</p>
-                                    </div>
-                                ))}
+                        {!apiKey ? (
+                            <div className="text-center text-sm text-muted-foreground p-4">
+                                Please add a GitHub API key in the Inspector to fetch your pull requests.
                             </div>
+                        ) : (
+                            <>
+                                {!isLoading && !prs && <p>Click Refresh to load your assigned pull requests.</p>}
+                                {prs && prs.length === 0 && <p>You have no open pull requests assigned to you.</p>}
+                                {prs && prs.length > 0 && (
+                                    <div className="space-y-2">
+                                        {prs.map(pr => (
+                                            <div
+                                                key={pr.url}
+                                                className={cn('p-3 border rounded-lg hover:bg-accent cursor-pointer', selectedPr?.url === pr.url && 'bg-accent border-primary/50')}
+                                                onClick={() => handleSelectPr(pr)}
+                                            >
+                                                <p className="font-semibold">{pr.title}</p>
+                                                <p className="text-sm text-muted-foreground">{pr.repo} #{pr.number}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </>
                         )}
                     </CardContent>
                 </Card>
@@ -125,7 +140,7 @@ const RepoSearch: React.FC<{ setActiveView: (view: ViewName) => void }> = ({ set
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        if(query.trim()) {
+        if(query.trim() && apiKey) {
             searchRepos(query, apiKey);
         }
     };
@@ -150,14 +165,18 @@ const RepoSearch: React.FC<{ setActiveView: (view: ViewName) => void }> = ({ set
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                         />
-                        <Button type="submit" disabled={isLoading}>
+                        <Button type="submit" disabled={isLoading || !apiKey} data-tooltip={!apiKey ? "A GitHub API key is required." : "Search"}>
                             <SearchIcon className="w-4 h-4 mr-2"/>
                             Search
                         </Button>
                     </form>
                     {isLoading && <p>Searching...</p>}
                     {error && <p className="text-destructive">{error}</p>}
-                    {repos && (
+                    {!apiKey && !isLoading ? (
+                        <div className="text-center text-sm text-muted-foreground p-4">
+                            Please add a GitHub API key in the Inspector to search repositories.
+                        </div>
+                    ) : repos && (
                         <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
                             {repos.map(repo => (
                                 <div key={repo.id} className="p-3 border rounded-lg">
@@ -187,6 +206,7 @@ const IssueLabeler: React.FC = () => {
 
     const labelOperation = useStreamingOperation(async () => {
         if (!issueUrl.trim()) throw new Error("Please enter a GitHub issue URL.");
+        if (!apiKey) throw new Error("A GitHub API key is required for this operation.");
         const prompt = `Please analyze and apply labels to the following GitHub issue: ${issueUrl}`;
         return supervisor.handleRequest(prompt, { fileTree: null, stagedFiles: [], apiKey }, { setActiveView: () => {} }, IssueLabelAgent.id);
     });
@@ -205,12 +225,27 @@ const IssueLabeler: React.FC = () => {
                             value={issueUrl}
                             onChange={(e) => setIssueUrl(e.target.value)}
                         />
-                        <Button onClick={labelOperation.execute} disabled={labelOperation.isLoading}>
+                        <Button 
+                            onClick={labelOperation.execute} 
+                            disabled={labelOperation.isLoading || !apiKey || !issueUrl.trim()}
+                            data-tooltip={!apiKey ? "A GitHub API key is required." : "Suggest & Apply Labels"}
+                        >
                             <TagsIcon className="w-4 h-4 mr-2"/>
                             Suggest & Apply Labels
                         </Button>
                     </div>
-                    {(labelOperation.isLoading || labelOperation.content || labelOperation.error) && (
+                    {(!apiKey && !labelOperation.isLoading) && (
+                         <div className="p-4 border-2 border-dashed rounded-lg bg-muted/30 min-h-[200px]">
+                            <div className="h-full flex items-center justify-center">
+                                <EmptyState
+                                    icon={<TagsIcon className="w-12 h-12" />}
+                                    title="API Key Required"
+                                    description="Please add a GitHub API key in the 'GitHub Inspector' to use this feature."
+                                />
+                            </div>
+                        </div>
+                    )}
+                    {(apiKey && (labelOperation.isLoading || labelOperation.content || labelOperation.error)) && (
                         <div className="p-4 border rounded-lg bg-muted/30 min-h-[200px]">
                             {labelOperation.isLoading ? (
                                <GenerationInProgress agentName={labelOperation.agentName} thoughts={labelOperation.thoughts} />
@@ -229,8 +264,6 @@ const IssueLabeler: React.FC = () => {
 
 
 const GitHubProView: React.FC<{ setActiveView: (view: ViewName) => void }> = ({ setActiveView }) => {
-    const { apiKey } = useContext(GithubContext);
-
     return (
         <div className="flex flex-col h-full">
             <ViewHeader
@@ -238,34 +271,24 @@ const GitHubProView: React.FC<{ setActiveView: (view: ViewName) => void }> = ({ 
                 title="GitHub Pro"
                 description="Advanced tools for deep GitHub workflow integration."
             />
-            {!apiKey ? (
-                 <div className="flex-1 p-6">
-                    <EmptyState
-                        icon={<GithubIcon className="w-12 h-12" />}
-                        title="API Key Required"
-                        description="Please add a GitHub API key in the 'GitHub Inspector' view to unlock these features."
-                    />
+            <Tabs defaultValue="pr-reviewer" className="flex-1 flex flex-col">
+                <div className="px-6">
+                    <TabsList>
+                        <TabsTrigger value="pr-reviewer">My Pull Requests</TabsTrigger>
+                        <TabsTrigger value="issue-labeler">AI Issue Labeler</TabsTrigger>
+                        <TabsTrigger value="repo-search">Repository Search</TabsTrigger>
+                    </TabsList>
                 </div>
-            ) : (
-                <Tabs defaultValue="pr-reviewer" className="flex-1 flex flex-col">
-                    <div className="px-6">
-                        <TabsList>
-                            <TabsTrigger value="pr-reviewer">My Pull Requests</TabsTrigger>
-                            <TabsTrigger value="issue-labeler">AI Issue Labeler</TabsTrigger>
-                            <TabsTrigger value="repo-search">Repository Search</TabsTrigger>
-                        </TabsList>
-                    </div>
-                    <TabsContent value="pr-reviewer" className="flex-1 flex flex-col mt-0">
-                        <MyPullRequests />
-                    </TabsContent>
-                    <TabsContent value="issue-labeler" className="flex-1 flex flex-col mt-0">
-                        <IssueLabeler />
-                    </TabsContent>
-                    <TabsContent value="repo-search" className="flex-1 flex flex-col mt-0">
-                        <RepoSearch setActiveView={setActiveView} />
-                    </TabsContent>
-                </Tabs>
-            )}
+                <TabsContent value="pr-reviewer" className="flex-1 flex flex-col mt-0">
+                    <MyPullRequests />
+                </TabsContent>
+                <TabsContent value="issue-labeler" className="flex-1 flex flex-col mt-0">
+                    <IssueLabeler />
+                </TabsContent>
+                <TabsContent value="repo-search" className="flex-1 flex flex-col mt-0">
+                    <RepoSearch setActiveView={setActiveView} />
+                </TabsContent>
+            </Tabs>
         </div>
     );
 };

@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useContext, useCallback, useEffect, useMemo } from 'react';
 import ReactFlow, {
   Controls,
@@ -27,15 +24,16 @@ import { GithubContext } from '../context/GithubContext';
 import { supervisor } from '../services/supervisor';
 import { CodeGraphAgent } from '../agents/CodeGraphAgent';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
-import { CodeGraphIcon, LoaderIcon, BrainIcon, VercelTriangleIcon, BracketsIcon, ServerIcon, DocumentIcon, SettingsIcon } from '../components/icons';
+import { CodeGraphIcon, LoaderIcon, BrainIcon, VercelTriangleIcon, BracketsIcon, ServerIcon, DocumentIcon, SettingsIcon, SearchIcon } from '../components/icons';
 import { cacheService } from '../services/cache.service';
 import { useSettings } from '../context/SettingsContext';
 import EmptyState from '../components/EmptyState';
 import ViewHeader from '../components/ViewHeader';
-import { Input } from '../components/ui/Input';
 import { useStreamingOperation } from '../hooks/useStreamingOperation';
 import { Button } from '../components/ui/Button';
 import GenerationInProgress from '../components/GenerationInProgress';
+import { cn } from '../lib/utils';
+import { Input } from '../components/ui/Input';
 
 const getNodeColor = (type?: string) => {
     switch (type) {
@@ -43,6 +41,8 @@ const getNodeColor = (type?: string) => {
         case 'view': return 'hsl(var(--dv-purple))';
         case 'component': return 'hsl(var(--dv-blue))';
         case 'service': return 'hsl(var(--dv-teal))';
+        case 'hook': return 'hsl(var(--dv-teal))';
+        case 'context': return 'hsl(var(--dv-teal))';
         case 'config': return 'hsl(var(--dv-orange))';
         case 'group': return 'hsl(var(--secondary))';
         default: return 'hsl(var(--muted-foreground))';
@@ -56,17 +56,21 @@ const getNodeIcon = (type?: string) => {
         case 'view': return <VercelTriangleIcon className={className} />;
         case 'component': return <BracketsIcon className={className} />;
         case 'service': return <ServerIcon className={className} />;
+        case 'hook': return <ServerIcon className={className} />;
+        case 'context': return <ServerIcon className={className} />;
         case 'config': return <SettingsIcon className={className} />;
         default: return <DocumentIcon className={className} />;
     }
 }
 
-const CustomNode: React.FC<NodeProps> = ({ data }) => (
+const CustomNode: React.FC<NodeProps> = React.memo(({ data }) => (
     <div className="flex items-center justify-center w-full h-full p-2">
         {getNodeIcon(data.type)}
         <span className="truncate">{data.label}</span>
     </div>
-);
+));
+CustomNode.displayName = 'CustomNode';
+
 
 const nodeTypes = {
   custom: CustomNode,
@@ -78,7 +82,10 @@ const Graph: React.FC<{ rawNodes: Node[], rawEdges: Edge[] }> = ({ rawNodes, raw
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const { fitView } = useReactFlow();
-    const [searchTerm, setSearchTerm] = useState('');
+    const [highlightedNode, setHighlightedNode] = useState<string | null>(null);
+
+    const onNodeMouseEnter = useCallback((_: any, node: Node) => setHighlightedNode(node.id), []);
+    const onNodeMouseLeave = useCallback(() => setHighlightedNode(null), []);
 
     useEffect(() => {
         if (rawNodes.length === 0) return;
@@ -89,8 +96,7 @@ const Graph: React.FC<{ rawNodes: Node[], rawEdges: Edge[] }> = ({ rawNodes, raw
             degreeMap.set(edge.target, (degreeMap.get(edge.target) || 0) + 1);
         });
 
-        const sizedNodes = rawNodes.map(node => {
-            const degree = degreeMap.get(node.id) || 0;
+        const initialNodes = rawNodes.map(node => {
             const isGroup = node.data.type === 'group';
             return {
                 ...node,
@@ -108,7 +114,7 @@ const Graph: React.FC<{ rawNodes: Node[], rawEdges: Edge[] }> = ({ rawNodes, raw
             };
         });
 
-        const sizedEdges = rawEdges.map(edge => ({
+        const initialEdges = rawEdges.map(edge => ({
             ...edge,
             animated: true,
             style: { 
@@ -116,75 +122,52 @@ const Graph: React.FC<{ rawNodes: Node[], rawEdges: Edge[] }> = ({ rawNodes, raw
                 stroke: 'hsl(var(--border))',
             },
         }));
-
-        const nodesForSimulation = sizedNodes.map(n => ({ ...n })) as SimulationNode[];
+        
+        const nodesForSimulation = initialNodes.map(n => ({ ...n })) as SimulationNode[];
 
         const simulation: Simulation<SimulationNode, Edge> = forceSimulation(nodesForSimulation)
-            .force('link', forceLink<SimulationNode, Edge>(sizedEdges).id((d) => d.id).distance(120))
+            .force('link', forceLink<SimulationNode, Edge>(initialEdges).id((d) => d.id).distance(120))
             .force('charge', forceManyBody().strength(-300))
-            .force('center', forceCenter(window.innerWidth / 4, window.innerHeight / 4));
-
-        simulation.on('tick', () => {
-             setNodes(currentNodes =>
-                currentNodes.map(n => {
+            .force('center', forceCenter(window.innerWidth / 4, window.innerHeight / 4))
+            .on('end', () => {
+                const finalNodes = initialNodes.map(n => {
                     const simNode = nodesForSimulation.find(sn => sn.id === n.id);
                     return simNode ? { ...n, position: { x: simNode.x ?? 0, y: simNode.y ?? 0 } } : n;
-                })
-            );
-        });
-
-        simulation.on('end', () => {
-             setTimeout(() => fitView({ padding: 0.1, duration: 800 }), 100);
-        });
-        
-        setNodes(sizedNodes);
-        setEdges(sizedEdges);
-
-        return () => {
-            simulation.stop();
-        };
+                });
+                setNodes(finalNodes);
+                setEdges(initialEdges);
+                setTimeout(() => fitView({ padding: 0.1, duration: 800 }), 100);
+            });
+            
     }, [rawNodes, rawEdges, setNodes, setEdges, fitView]);
     
-     useEffect(() => {
-        const lowerCaseSearch = searchTerm.toLowerCase().trim();
-        const shouldDim = lowerCaseSearch !== '';
+    const memoizedNodes = useMemo(() => {
+        if (!highlightedNode) return nodes.map(n => ({...n, className: ''}));
+
+        const neighborEdges = rawEdges.filter(edge => edge.source === highlightedNode || edge.target === highlightedNode);
+        const neighborNodeIds = new Set(neighborEdges.flatMap(edge => [edge.source, edge.target]));
+        neighborNodeIds.add(highlightedNode);
+
+        return nodes.map(n => ({ ...n, className: neighborNodeIds.has(n.id) ? '' : 'dimmed' }));
+    }, [nodes, highlightedNode, rawEdges]);
+
+    const memoizedEdges = useMemo(() => {
+        if (!highlightedNode) return edges.map(e => ({...e, className: ''}));
+
+        const neighborEdges = rawEdges.filter(edge => edge.source === highlightedNode || edge.target === highlightedNode);
         
-        const matchingNodeIds = new Set(
-            shouldDim ? nodes.filter(n => n.data.label.toLowerCase().includes(lowerCaseSearch)).map(n => n.id) : []
-        );
-
-        if (shouldDim && matchingNodeIds.size === 0) {
-            setNodes(nds => nds.map(n => ({ ...n, className: 'dimmed' })));
-            setEdges(eds => eds.map(e => ({ ...e, className: 'dimmed' })));
-            return;
-        }
-
-        const connectedEdges = shouldDim ? edges.filter(e => matchingNodeIds.has(e.source) || matchingNodeIds.has(e.target)) : [];
-        const highlightedNodeIds = new Set(connectedEdges.flatMap(e => [e.source, e.target]));
-        matchingNodeIds.forEach(id => highlightedNodeIds.add(id));
-
-        setNodes(nds =>
-            nds.map(n => ({
-                ...n,
-                className: shouldDim && !highlightedNodeIds.has(n.id) ? 'dimmed' : '',
-            }))
-        );
-         setEdges(eds =>
-            eds.map(e => ({
-                ...e,
-                className: shouldDim && !connectedEdges.some(ce => ce.id === e.id) ? 'dimmed' : '',
-            }))
-        );
-
-    }, [searchTerm, nodes, edges, setNodes, setEdges]);
+        return edges.map(e => ({ ...e, className: neighborEdges.some(ne => ne.id === e.id) ? '' : 'dimmed' }));
+    }, [edges, highlightedNode, rawEdges]);
 
 
     return (
         <ReactFlow
-            nodes={nodes}
-            edges={edges}
+            nodes={memoizedNodes}
+            edges={memoizedEdges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
+            onNodeMouseEnter={onNodeMouseEnter}
+            onNodeMouseLeave={onNodeMouseLeave}
             fitView
             className="bg-transparent"
             proOptions={{ hideAttribution: true }}
@@ -195,14 +178,8 @@ const Graph: React.FC<{ rawNodes: Node[], rawEdges: Edge[] }> = ({ rawNodes, raw
             <MiniMap nodeColor={n => getNodeColor(n.data.type)} nodeStrokeWidth={3} zoomable pannable />
             <Panel position="top-right" className="p-0 m-2">
                 <Card className="glass-effect w-64">
-                    <CardContent className="p-2">
-                        <Input 
-                            type="text"
-                            placeholder="Search a node..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full"
-                        />
+                    <CardContent className="p-3 text-center text-sm text-muted-foreground">
+                       <p>Hover over a node to highlight its dependencies.</p>
                     </CardContent>
                 </Card>
             </Panel>
@@ -222,7 +199,7 @@ const CodeGraphView: React.FC = () => {
     }
     setGraphData(null); // Clear previous graph
     
-    const cacheKey = `code-graph-v4::${repoUrl}`;
+    const cacheKey = `code-graph-v5::${repoUrl}`;
     if (settings.isCacheEnabled) {
       const cached = await cacheService.get<string>(cacheKey);
       if (cached) {
@@ -244,8 +221,8 @@ const CodeGraphView: React.FC = () => {
         const parsed = JSON.parse(generateGraphOperation.content);
         setGraphData(parsed);
         if (settings.isCacheEnabled && repoUrl) {
-          const cacheKey = `code-graph-v4::${repoUrl}`;
-          cacheService.set(cacheKey, generateGraphOperation.content);
+          const cacheKey = `code-graph-v5::${repoUrl}`;
+          cacheService.set(cacheKey, generateGraphOperation.content, 10 * 60 * 1000); // 10 min cache
         }
       } catch (e) {
         console.error("Failed to parse graph JSON:", e);

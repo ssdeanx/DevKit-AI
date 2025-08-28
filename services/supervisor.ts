@@ -13,6 +13,7 @@ import { agentPerformanceService } from './agent-performance.service';
 import { v4 as uuidv4 } from 'uuid';
 import { vectorCacheService } from './vector-cache.service';
 import { ContextRetrievalAgent } from '../agents/ContextRetrievalAgent';
+import { ContextOptimizerAgent } from '../agents/ContextOptimizerAgent';
 
 interface FullGitContext {
     fileTree: FileNode[] | null;
@@ -125,44 +126,29 @@ class Supervisor {
     return { agent: selectedAgent, stream };
   }
 
-  private async *_createExecutionStream(
-    selectedAgent: Agent,
+  private async *_assembleContextParts(
+    agent: Agent,
     prompt: string,
-    githubContext: FullGitContext & { apiKey?: string },
-    callbacks: { setActiveView: (view: ViewName) => void },
-    retryContext?: RetryContext,
-    initialContents?: Content[]
-  ): AgentExecuteStream {
-    try {
+    githubContext: FullGitContext,
+    retryContext?: RetryContext
+  ): AsyncGenerator<Part | { type: 'thought', content: string, agentName: string }, Part[], unknown> {
         let contextParts: Part[] = [];
-        
+
+        // 1. Add Short-Term and Long-Term Memory
         const recentHistory = shortTermMemoryService.getHistory(5);
         if (recentHistory.length > 0) {
-            let stmContext = `<CONVERSATION_HISTORY>
-This is the recent history of our current conversation. Use it to understand the immediate context.
-${recentHistory.map(entry => `[${entry.author === 'user' ? 'AI' : 'USER'}]: ${cleanText(entry.content)}`).join('\n')}
-</CONVERSATION_HISTORY>`;
-            contextParts.push({ text: stmContext });
+            contextParts.push({ text: `<CONVERSATION_HISTORY>...\n${recentHistory.map(e => `[${e.author}]: ${cleanText(e.content)}`).join('\n')}\n</CONVERSATION_HISTORY>` });
         }
-
-        const relevantMemories = await agentMemoryService.searchMemories(selectedAgent.id, prompt);
+        const relevantMemories = await agentMemoryService.searchMemories(agent.id, prompt);
         if (relevantMemories.length > 0) {
-            let ltmContext = `<LONG_TERM_MEMORY>
-This is your personal memory of key facts and user feedback from past sessions. Use it to improve your performance and avoid past mistakes.
-${relevantMemories.map(mem => `- [${mem.type.toUpperCase()}] ${mem.content}`).join('\n')}
-</LONG_TERM_MEMORY>`;
-            contextParts.push({ text: ltmContext });
+            contextParts.push({ text: `<LONG_TERM_MEMORY>...\n${relevantMemories.map(m => `- [${m.type.toUpperCase()}] ${m.content}`).join('\n')}\n</LONG_TERM_MEMORY>` });
+        }
+        if (retryContext) {
+            contextParts.push({ text: `<RETRY_CONTEXT>...[USER FEEDBACK]: "${retryContext.feedback}"...</RETRY_CONTEXT>` });
         }
 
-        if (retryContext) {
-            contextParts.push({ text: `<RETRY_CONTEXT>
-CRITICAL: Your previous attempt to answer this failed. You are re-attempting the task based on direct user feedback.
-[USER FEEDBACK]: "${retryContext.feedback}"
-Analyze this feedback carefully to improve your response and avoid the previous error.
-</RETRY_CONTEXT>` });
-        }
-        
-        if (selectedAgent.acceptsContext) {
+        // 2. Perform RAG (Retrieval-Augmented Generation) if agent accepts context
+        if (agent.acceptsContext) {
             yield { type: 'thought', content: 'Searching vector cache for relevant code snippets...', agentName: 'ContextRetriever' };
             const retrievalAgent = agentService.getAgents().find(a => a.id === ContextRetrievalAgent.id)!;
             const retrievalStream = retrievalAgent.execute([{ role: 'user', parts: [{ text: prompt }] }]);
@@ -172,17 +158,71 @@ Analyze this feedback carefully to improve your response and avoid the previous 
             }
 
             if (retrievedContext.trim()) {
-                 console.log(`Supervisor: Adding RAG context for agent ${selectedAgent.name}.`);
-                 contextParts.push({ text: retrievedContext });
-                 yield { type: 'thought', content: `Found ${retrievedContext.split('---').length - 1} relevant code chunk(s). Assembling context...`, agentName: 'ContextRetriever' };
+                contextParts.push({ text: retrievedContext });
+                yield { type: 'thought', content: `Found ${retrievedContext.split('---').length - 1} relevant code chunk(s).`, agentName: 'ContextRetriever' };
             } else {
-                 yield { type: 'thought', content: `No highly relevant code found in vector cache. Proceeding with general knowledge.`, agentName: 'ContextRetriever' };
+                yield { type: 'thought', content: `No highly relevant code found in vector cache.`, agentName: 'ContextRetriever' };
+            }
+        }
+        
+        // 3. Optimize GitHub context if needed
+        if (agent.acceptsContext && githubContext.stagedFiles.length > 5) {
+            yield { type: 'thought', content: `Many files staged (${githubContext.stagedFiles.length}). Optimizing context...`, agentName: 'ContextOptimizer' };
+            const optimizerAgent = agentService.getAgents().find(a => a.id === ContextOptimizerAgent.id)!;
+            const optimizerPrompt = `User query: "${prompt}"\n\nAvailable files:\n${githubContext.stagedFiles.map(f => `- ${f.path}`).join('\n')}`;
+            const optimizerStream = optimizerAgent.execute([{ role: 'user', parts: [{ text: optimizerPrompt }] }]);
+            let optimizerResult = '';
+            for await (const chunk of optimizerStream) {
+                if (chunk.type === 'content') optimizerResult += chunk.content;
+            }
+            try {
+                const relevantFiles = JSON.parse(optimizerResult.replace(/```json|```/g, '').trim());
+                const optimizedStagedFiles = githubContext.stagedFiles.filter(f => relevantFiles.includes(f.path));
+                yield { type: 'thought', content: `Selected ${optimizedStagedFiles.length} most relevant files.`, agentName: 'ContextOptimizer' };
+                githubContext.stagedFiles = optimizedStagedFiles;
+            } catch (e) {
+                yield { type: 'thought', content: `Could not optimize context, proceeding with all ${githubContext.stagedFiles.length} files.`, agentName: 'ContextOptimizer' };
+            }
+        }
+
+        // 4. Assemble final GitHub context string
+        if (agent.acceptsContext && (githubContext.fileTree || githubContext.stagedFiles.length > 0)) {
+            let gitContextString = "<GITHUB_CONTEXT>...\n";
+            if (githubContext.fileTree) gitContextString += `<FILE_STRUCTURE>\n${formatFileTree(githubContext.fileTree)}\n</FILE_STRUCTURE>\n\n`;
+            if (githubContext.stagedFiles.length > 0) {
+                gitContextString += "<STAGED_FILES>\n";
+                for (const file of githubContext.stagedFiles) gitContextString += `<FILE path="${file.path}">\n${cleanText(file.content)}\n</FILE>\n\n`;
+                gitContextString += "</STAGED_FILES>\n";
+            }
+            gitContextString += "</GITHUB_CONTEXT>";
+            contextParts.push({ text: gitContextString });
+        }
+
+        return contextParts;
+    }
+
+  private async *_createExecutionStream(
+    selectedAgent: Agent,
+    prompt: string,
+    githubContext: FullGitContext & { apiKey?: string },
+    callbacks: { setActiveView: (view: ViewName) => void },
+    retryContext?: RetryContext,
+    initialContents?: Content[]
+  ): AgentExecuteStream {
+    try {
+        const contextGenerator = this._assembleContextParts(selectedAgent, prompt, githubContext, retryContext);
+        let contextParts: Part[] = [];
+        for await (const partOrThought of contextGenerator) {
+            if ('type' in partOrThought && partOrThought.type === 'thought') {
+                yield partOrThought;
+            } else {
+                contextParts.push(partOrThought as Part);
             }
         }
        
         const finalPromptParts: Part[] = [
             ...contextParts,
-            { text: `Based on all the context provided, please handle the following user request:\n\n<USER_REQUEST>\n${prompt}\n</USER_REQUEST>` }
+            { text: `<USER_REQUEST>\n${prompt}\n</USER_REQUEST>` }
         ];
         
         const finalContents: Content[] = initialContents 
@@ -252,7 +292,6 @@ Analyze this feedback carefully to improve your response and avoid the previous 
     const planStream = planner.execute(contents);
     let planJsonString = '';
     let plannerUsage: TokenUsage | null = null;
-    let finalContent = '';
     
     for await (const chunk of planStream) {
         if (chunk.type === 'content') planJsonString += chunk.content.replace(/```json|```/g, '').trim();

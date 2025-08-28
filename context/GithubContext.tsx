@@ -2,6 +2,7 @@ import React, { createContext, useState, useCallback, ReactNode, useEffect } fro
 import { githubService, FileNode, StagedFile } from '../services/github.service';
 import { vectorCacheService } from '../services/vector-cache.service';
 import { useToast } from './ToastContext';
+import { cacheService } from '../services/cache.service';
 
 const GITHUB_API_KEY_STORAGE_KEY = 'devkit-github-api-key';
 
@@ -182,9 +183,18 @@ export const GithubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setIndexingQueue([]);
     setIndexingStatus({ total: 0, completed: 0, currentFile: '', chunksTotal: 0, chunksCompleted: 0 });
     try {
-      const tree = await githubService.fetchRepoTree(url, apiKey);
-      setFileTree(tree);
-      setRepoUrl(url);
+      const cacheKey = `repo-tree::${url}`;
+      const cachedTree = await cacheService.get<FileNode[]>(cacheKey);
+      if (cachedTree) {
+          console.log("Loading repo tree from cache.");
+          setFileTree(cachedTree);
+          setRepoUrl(url);
+      } else {
+          const tree = await githubService.fetchRepoTree(url, apiKey);
+          setFileTree(tree);
+          setRepoUrl(url);
+          await cacheService.set(cacheKey, tree, 10 * 60 * 1000); // 10 minute TTL
+      }
     } catch (e: any) {
       setError(e.message || 'Failed to fetch repository.');
     } finally {

@@ -1,4 +1,3 @@
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Type, Part, Content, MediaResolution } from '@google/genai';
@@ -21,11 +20,12 @@ Your task is to analyze a provided file tree and generate a JSON object represen
   6.  **'hook'**: Files located in a 'hooks' directory or starting with 'use' (e.g., 'useStreamingOperation.ts').
   7.  **'config'**: Top-level configuration files (e.g., 'vite.config.ts', 'tailwind.config.js', '.eslintrc.js', 'package.json').
   8.  **'other'**: Any file that does not match the above criteria.
-- **Infer dependencies** based on common architectural patterns. For example:
-  - An 'entry' file (like App.tsx) depends on 'view' files.
-  - A 'view' file depends on multiple 'component' files and 'hook' files.
-  - 'component' files and 'hook' files might depend on 'service' files.
-  - Almost all components/views might depend on a central 'context' file.
+- **Infer dependencies (Edges) based on these hierarchical rules:** Your primary goal is to create a plausible dependency graph. Create edges liberally based on these patterns:
+  1.  **\`entry\` -> \`view\` / \`context\`**: The main 'entry' point should connect to all 'view' nodes and any top-level 'context' nodes.
+  2.  **\`view\` -> \`component\` / \`hook\` / \`context\`**: 'view' nodes should connect to the 'component', 'hook', and 'context' nodes they likely use. A view is a container for components.
+  3.  **\`component\` -> \`component\` / \`hook\` / \`service\` / \`context\`**: 'component' nodes can depend on other, more generic components (e.g., in a 'ui' folder), 'hook's for logic, 'service's for data, and 'context's for state.
+  4.  **\`hook\` -> \`service\` / \`context\`**: 'hook' nodes often encapsulate logic that calls 'service's or accesses 'context'.
+  5.  **Chain of Dependency:** A typical flow is \`view\` -> \`component\` -> \`hook\` -> \`service\`. Try to model these chains where possible.
 
 ### OUTPUT FORMAT
 - Your entire output MUST be a single, valid JSON object that matches the schema.

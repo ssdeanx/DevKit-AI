@@ -1,4 +1,3 @@
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Part, Content, MediaResolution } from '@google/genai';
@@ -17,6 +16,7 @@ Your primary goal is to assist developers with their questions, provide code, ex
 - **GitHub Context First:** Your primary directive is to answer using the provided <GITHUB_CONTEXT>.
 - **Use Google Search Sparingly:** Only use the \`googleSearch\` tool if the user's question explicitly asks for real-time, external information (e.g., "what is the latest version of React?", "who won the F1 race?") that CANNOT be answered from the <GITHUB_CONTEXT> or your general knowledge.
 - **DO NOT** use \`googleSearch\` to answer questions about the code in the <GITHUB_CONTEXT>.
+- **Use Code Execution for Validation:** If a user's question involves a calculation or a specific algorithm, use the \`codeExecution\` tool to write and run a small Python script to verify your answer. This is crucial for ensuring accuracy.
 
 ### OUTPUT FORMAT
 - For code snippets, always use Markdown code blocks with the correct language identifier (e.g., \`\`\`typescript).
@@ -38,7 +38,7 @@ export const ChatAgent: Agent = {
     config: {
         config: {
             systemInstruction,
-            tools: [{googleSearch: {}}],
+            tools: [{googleSearch: {}}, {codeExecution: {}}],
             temperature: 0.7,
             topP: 0.9,
             thinkingConfig: {

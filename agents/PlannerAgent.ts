@@ -1,10 +1,9 @@
-
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Type, Part, Content, MediaResolution } from '@google/genai';
 
 const AGENT_DEFINITIONS = [
-    { name: 'ChatAgent', description: 'Answers general programming questions, explains code, or engages in conversation.' },
+    { name: 'ChatAgent', description: 'Answers general programming questions, explains code, or engages in conversation. Can also execute code.' },
     { name: 'ReadmeAgent', description: 'Generates a professional README.md file by analyzing project structure and description.' },
     { name: 'ProjectRulesAgent', description: 'Generates a "Project Constitution" defining coding standards based on the repository.' },
     { name: 'PullRequestAgent', description: 'Performs an expert code review of a pull request, providing actionable feedback.' },
@@ -17,7 +16,8 @@ const AGENT_DEFINITIONS = [
     { name: 'StructuredOutputAgent', description: 'Outputs structured JSON data based on a schema (e.g., "list 5 movies as a JSON array").' },
     { name: 'UrlAgent', description: 'Summarizes or answers questions about content from a provided web page URL.' },
     { name: 'FunctionCallingAgent', description: 'Controls the application UI or settings via function calls (e.g., "navigate to settings").' },
-    { name: 'CodeGraphAgent', description: 'Analyzes the repository file structure and generates a visual dependency graph.' }
+    { name: 'CodeGraphAgent', description: 'Analyzes the repository file structure and generates a visual dependency graph.' },
+    { name: 'ContextOptimizerAgent', description: 'Analyzes a user query and a list of files to select the most relevant subset of files for context. Use this as a first step for complex code queries.' }
 ];
 
 const agentNames = AGENT_DEFINITIONS.map(a => a.name);
