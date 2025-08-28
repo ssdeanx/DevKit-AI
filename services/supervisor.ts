@@ -1,3 +1,5 @@
+
+
 import { orchestrator } from './orchestrator';
 import { Agent, AgentExecuteStream, WorkflowPlan, TokenUsage } from '../agents/types';
 import { agentService } from './agent.service';
@@ -11,9 +13,9 @@ import { shortTermMemoryService } from './short-term-memory.service';
 import { MemoryAgent } from '../agents/MemoryAgent';
 import { agentPerformanceService } from './agent-performance.service';
 import { v4 as uuidv4 } from 'uuid';
-import { vectorCacheService } from './vector-cache.service';
 import { ContextRetrievalAgent } from '../agents/ContextRetrievalAgent';
 import { ContextOptimizerAgent } from '../agents/ContextOptimizerAgent';
+import { workingMemoryService } from './working-memory.service';
 
 interface FullGitContext {
     fileTree: FileNode[] | null;
@@ -109,6 +111,10 @@ class Supervisor {
     this.apiKey = githubContext.apiKey || '';
     const effectivePrompt = retryContext ? retryContext.originalPrompt : prompt;
     
+    // Clear working memory for a new top-level task
+    workingMemoryService.clear();
+    workingMemoryService.setTask(effectivePrompt);
+    
     let selectedAgent: Agent;
     if (forceAgentId) {
         const foundAgent = agentService.getAgents().find(a => a.id === forceAgentId);
@@ -119,87 +125,13 @@ class Supervisor {
         const orchestratorResult = await orchestrator.selectAgent(effectivePrompt);
         selectedAgent = orchestratorResult.agent;
         console.log(`Supervisor: Orchestrator selected agent ${selectedAgent.name}. Reasoning: ${orchestratorResult.reasoning}`);
+        workingMemoryService.addObservation(`Orchestrator selected ${selectedAgent.name}. Reasoning: ${orchestratorResult.reasoning}`);
     }
     
     const stream = this._createExecutionStream(selectedAgent, effectivePrompt, githubContext, callbacks, retryContext, initialContents);
 
     return { agent: selectedAgent, stream };
   }
-
-  private async *_assembleContextParts(
-    agent: Agent,
-    prompt: string,
-    githubContext: FullGitContext,
-    retryContext?: RetryContext
-  ): AsyncGenerator<Part | { type: 'thought', content: string, agentName: string }, Part[], unknown> {
-        let contextParts: Part[] = [];
-
-        // 1. Add Short-Term and Long-Term Memory
-        const recentHistory = shortTermMemoryService.getHistory(5);
-        if (recentHistory.length > 0) {
-            contextParts.push({ text: `<CONVERSATION_HISTORY>...\n${recentHistory.map(e => `[${e.author}]: ${cleanText(e.content)}`).join('\n')}\n</CONVERSATION_HISTORY>` });
-        }
-        const relevantMemories = await agentMemoryService.searchMemories(agent.id, prompt);
-        if (relevantMemories.length > 0) {
-            contextParts.push({ text: `<LONG_TERM_MEMORY>...\n${relevantMemories.map(m => `- [${m.type.toUpperCase()}] ${m.content}`).join('\n')}\n</LONG_TERM_MEMORY>` });
-        }
-        if (retryContext) {
-            contextParts.push({ text: `<RETRY_CONTEXT>...[USER FEEDBACK]: "${retryContext.feedback}"...</RETRY_CONTEXT>` });
-        }
-
-        // 2. Perform RAG (Retrieval-Augmented Generation) if agent accepts context
-        if (agent.acceptsContext) {
-            yield { type: 'thought', content: 'Searching vector cache for relevant code snippets...', agentName: 'ContextRetriever' };
-            const retrievalAgent = agentService.getAgents().find(a => a.id === ContextRetrievalAgent.id)!;
-            const retrievalStream = retrievalAgent.execute([{ role: 'user', parts: [{ text: prompt }] }]);
-            let retrievedContext = '';
-            for await (const chunk of retrievalStream) {
-                if (chunk.type === 'content') retrievedContext += chunk.content;
-            }
-
-            if (retrievedContext.trim()) {
-                contextParts.push({ text: retrievedContext });
-                yield { type: 'thought', content: `Found ${retrievedContext.split('---').length - 1} relevant code chunk(s).`, agentName: 'ContextRetriever' };
-            } else {
-                yield { type: 'thought', content: `No highly relevant code found in vector cache.`, agentName: 'ContextRetriever' };
-            }
-        }
-        
-        // 3. Optimize GitHub context if needed
-        if (agent.acceptsContext && githubContext.stagedFiles.length > 5) {
-            yield { type: 'thought', content: `Many files staged (${githubContext.stagedFiles.length}). Optimizing context...`, agentName: 'ContextOptimizer' };
-            const optimizerAgent = agentService.getAgents().find(a => a.id === ContextOptimizerAgent.id)!;
-            const optimizerPrompt = `User query: "${prompt}"\n\nAvailable files:\n${githubContext.stagedFiles.map(f => `- ${f.path}`).join('\n')}`;
-            const optimizerStream = optimizerAgent.execute([{ role: 'user', parts: [{ text: optimizerPrompt }] }]);
-            let optimizerResult = '';
-            for await (const chunk of optimizerStream) {
-                if (chunk.type === 'content') optimizerResult += chunk.content;
-            }
-            try {
-                const relevantFiles = JSON.parse(optimizerResult.replace(/```json|```/g, '').trim());
-                const optimizedStagedFiles = githubContext.stagedFiles.filter(f => relevantFiles.includes(f.path));
-                yield { type: 'thought', content: `Selected ${optimizedStagedFiles.length} most relevant files.`, agentName: 'ContextOptimizer' };
-                githubContext.stagedFiles = optimizedStagedFiles;
-            } catch (e) {
-                yield { type: 'thought', content: `Could not optimize context, proceeding with all ${githubContext.stagedFiles.length} files.`, agentName: 'ContextOptimizer' };
-            }
-        }
-
-        // 4. Assemble final GitHub context string
-        if (agent.acceptsContext && (githubContext.fileTree || githubContext.stagedFiles.length > 0)) {
-            let gitContextString = "<GITHUB_CONTEXT>...\n";
-            if (githubContext.fileTree) gitContextString += `<FILE_STRUCTURE>\n${formatFileTree(githubContext.fileTree)}\n</FILE_STRUCTURE>\n\n`;
-            if (githubContext.stagedFiles.length > 0) {
-                gitContextString += "<STAGED_FILES>\n";
-                for (const file of githubContext.stagedFiles) gitContextString += `<FILE path="${file.path}">\n${cleanText(file.content)}\n</FILE>\n\n`;
-                gitContextString += "</STAGED_FILES>\n";
-            }
-            gitContextString += "</GITHUB_CONTEXT>";
-            contextParts.push({ text: gitContextString });
-        }
-
-        return contextParts;
-    }
 
   private async *_createExecutionStream(
     selectedAgent: Agent,
@@ -210,16 +142,45 @@ class Supervisor {
     initialContents?: Content[]
   ): AgentExecuteStream {
     try {
-        const contextGenerator = this._assembleContextParts(selectedAgent, prompt, githubContext, retryContext);
         let contextParts: Part[] = [];
-        for await (const partOrThought of contextGenerator) {
-            if ('type' in partOrThought && partOrThought.type === 'thought') {
-                yield partOrThought;
-            } else {
-                contextParts.push(partOrThought as Part);
-            }
+
+        // 1. Retrieve context from all memory tiers using the specialized agent
+        const retrievalAgent = agentService.getAgents().find(a => a.id === ContextRetrievalAgent.id)!;
+        // Fix: Pass agent ID within contents to conform to Agent.execute interface
+        const retrievalContents: Content[] = [{
+            role: 'user',
+            parts: [
+                { text: `<USER_QUERY>${prompt}</USER_QUERY>` },
+                { text: `<AGENT_FOR_CONTEXT>${selectedAgent.id}</AGENT_FOR_CONTEXT>` }
+            ]
+        }];
+        const retrievalStream = retrievalAgent.execute(retrievalContents);
+        let retrievedContext = '';
+        for await (const chunk of retrievalStream) {
+            if (chunk.type === 'content') retrievedContext += chunk.content;
         }
-       
+        if (retrievedContext.trim()) {
+            contextParts.push({ text: retrievedContext });
+        }
+
+        // 2. Handle GitHub context (file tree, staged files) if agent accepts it
+        if (selectedAgent.acceptsContext && (githubContext.fileTree || githubContext.stagedFiles.length > 0)) {
+            let gitContextString = "<GITHUB_CONTEXT>\n";
+            if (githubContext.fileTree) gitContextString += `<FILE_STRUCTURE>\n${formatFileTree(githubContext.fileTree)}\n</FILE_STRUCTURE>\n\n`;
+            if (githubContext.stagedFiles.length > 0) {
+                gitContextString += "<STAGED_FILES>\n";
+                for (const file of githubContext.stagedFiles) gitContextString += `<FILE path="${file.path}">\n${cleanText(file.content)}\n</FILE>\n\n`;
+                gitContextString += "</STAGED_FILES>\n";
+            }
+            gitContextString += "</GITHUB_CONTEXT>";
+            contextParts.push({ text: gitContextString });
+        }
+        
+        // 3. Add retry context if it exists
+        if (retryContext) {
+            contextParts.push({ text: `<RETRY_CONTEXT>Your previous attempt failed. User Feedback: "${retryContext.feedback}"</RETRY_CONTEXT>` });
+        }
+
         const finalPromptParts: Part[] = [
             ...contextParts,
             { text: `<USER_REQUEST>\n${prompt}\n</USER_REQUEST>` }
@@ -296,6 +257,7 @@ class Supervisor {
     for await (const chunk of planStream) {
         if (chunk.type === 'content') planJsonString += chunk.content.replace(/```json|```/g, '').trim();
         if (chunk.type === 'usageMetadata') plannerUsage = chunk.usage;
+        if (chunk.type === 'thought') workingMemoryService.appendInternalMonologue(`[${planner.name}]: ${chunk.content}`);
         yield chunk; // Pass through all chunks
     }
 
@@ -312,6 +274,7 @@ class Supervisor {
         console.log("Supervisor (Plan): Parsed plan successfully:", parsedPlan.plan);
     } catch (e) {
         console.error("Supervisor (Plan): Failed to parse plan JSON.", e);
+        workingMemoryService.addObservation(`Failed to parse plan JSON: ${e}`);
         yield { type: 'content', content: "I couldn't create a valid plan. Please try rephrasing your request." };
         return;
     }
@@ -319,10 +282,12 @@ class Supervisor {
     const allAgents = agentService.getAgents();
     let executionContext = '';
     const workflowSteps: WorkflowStep[] = parsedPlan.plan.map(p => ({ ...p, status: 'pending' }));
+    workingMemoryService.setPlan(workflowSteps);
     
     for (const step of parsedPlan.plan) {
         const currentStepIndex = workflowSteps.findIndex(ws => ws.step === step.step);
         workflowSteps[currentStepIndex].status = 'in-progress';
+        workingMemoryService.setPlan([...workflowSteps]);
         yield { type: 'workflowUpdate', plan: [...workflowSteps] };
         
         const agentToExecute = allAgents.find(a => a.name === step.agent);
@@ -331,8 +296,9 @@ class Supervisor {
             executionContext += errorMsg;
             workflowSteps[currentStepIndex].status = 'completed';
             workflowSteps[currentStepIndex].output = errorMsg;
+            workingMemoryService.addObservation(`Agent ${step.agent} not found.`);
         } else {
-            const subAgentPromptText = `<PLAN_CONTEXT>...Your task is: "${step.task}"...${executionContext}</PLAN_CONTEXT>`;
+            const subAgentPromptText = `<PLAN_CONTEXT>Your task is: "${step.task}"...${executionContext}</PLAN_CONTEXT>`;
             const subAgentContents: Content[] = [{ role: 'user', parts: [...baseContextParts, { text: subAgentPromptText }] }];
             
             let stepOutput = '';
@@ -343,6 +309,7 @@ class Supervisor {
             for await (const chunk of agentStream) {
                 if (chunk.type === 'content') stepOutput += chunk.content;
                 if (chunk.type === 'usageMetadata') stepUsage = { ...stepUsage, ...chunk.usage };
+                if (chunk.type === 'thought') workingMemoryService.appendInternalMonologue(`[${agentToExecute.name}]: ${chunk.content}`);
                 yield chunk;
             }
             
@@ -350,14 +317,17 @@ class Supervisor {
             workflowSteps[currentStepIndex].status = 'completed';
             workflowSteps[currentStepIndex].output = stepOutput;
             workflowSteps[currentStepIndex].usage = stepUsage;
+            workingMemoryService.addObservation(`Step ${step.step} (${agentToExecute.name}) completed. Output length: ${stepOutput.length}`);
 
             const qualityScore = this._calculateQualityScore(stepOutput, agentToExecute);
             const efficiencyScore = this._calculateEfficiencyScore(step.task, stepUsage);
             agentPerformanceService.addRecord(agentToExecute.id, stepRunId, step.task, stepUsage, efficiencyScore, qualityScore);
         }
         
+        workingMemoryService.setPlan([...workflowSteps]);
         yield { type: 'workflowUpdate', plan: [...workflowSteps] };
     }
+    workingMemoryService.setResult(executionContext);
   }
 
   private async *executeAgentWithFunctionCalling(
@@ -383,6 +353,7 @@ class Supervisor {
             yield chunk;
             if (chunk.type === 'content') finalContent += chunk.content;
             if (chunk.type === 'functionCall') functionCall = chunk.functionCall;
+            if (chunk.type === 'thought') workingMemoryService.appendInternalMonologue(`[${agent.name}]: ${chunk.content}`);
             if (chunk.type === 'usageMetadata' && chunk.usage) {
                 aggregatedUsage.promptTokenCount = (aggregatedUsage.promptTokenCount ?? 0) + (chunk.usage.promptTokenCount ?? 0);
                 aggregatedUsage.candidatesTokenCount = (aggregatedUsage.candidatesTokenCount ?? 0) + (chunk.usage.candidatesTokenCount ?? 0);
@@ -392,8 +363,10 @@ class Supervisor {
         }
         
         if (functionCall) {
+            workingMemoryService.addObservation(`Calling tool: ${functionCall.name} with args ${JSON.stringify(functionCall.args)}`);
             const tool = availableTools[functionCall.name];
             const result = tool ? await tool(functionCall.args, callbacks, this.apiKey) : { error: `Tool ${functionCall.name} not found.` };
+            workingMemoryService.addObservation(`Tool ${functionCall.name} returned: ${JSON.stringify(result)}`);
             history.push({ role: 'model', parts: [{ functionCall }] });
             history.push({ role: 'tool', parts: [{ functionResponse: { name: functionCall.name, response: result } }] });
         } else {
@@ -410,8 +383,11 @@ class Supervisor {
     }
 
     if (currentTurn >= MAX_TURNS) {
+        workingMemoryService.addObservation(`Max function calling turns (${MAX_TURNS}) reached.`);
         yield { type: 'content', content: "Sorry, I seem to be stuck in a loop. Please try rephrasing.", agentName: agent.name };
     }
+    
+    workingMemoryService.setResult(finalContent);
   }
 
   async recordFeedbackForRun(runId: string, rating: 'positive' | 'negative', reason: string | null) {

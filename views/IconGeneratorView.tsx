@@ -181,7 +181,7 @@ const IconGeneratorView: React.FC = () => {
         </Card>
 
         {/* Canvas */}
-        <div className={cn("flex flex-col relative aurora-canvas canvas-background p-4 h-full overflow-hidden")}>
+        <div className={cn("flex flex-col relative canvas-background p-4 h-full overflow-hidden")}>
            <div className="flex justify-between items-center p-2 relative z-10">
               <h3 className="text-lg font-semibold">Generated Images</h3>
            </div>

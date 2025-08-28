@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import Sidebar from './components/Sidebar';
 import ChatView from './views/ChatView';
@@ -20,6 +19,8 @@ import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import DocumentationView from './views/DocumentationView';
 import GitHubProView from './views/GitHubProView';
 import { TokenUsage } from './agents/types';
+import KnowledgeBaseView from './views/KnowledgeBaseView';
+import WorkingMemoryView from './views/WorkingMemoryView';
 
 export type ViewName = 
   | 'chat' 
@@ -29,8 +30,10 @@ export type ViewName =
   | 'logo-generator' 
   | 'github-inspector'
   | 'code-graph'
+  | 'knowledge-base'
   | 'github-pro'
-  | 'agent-memory'
+  | 'learned-memories'
+  | 'working-memory'
   | 'documentation'
   | 'history' 
   | 'settings';
@@ -70,21 +73,6 @@ const StagedFilesIndicator: React.FC = () => {
 const App: React.FC = () => {
   const [activeView, setActiveView] = React.useState<ViewName>('chat');
 
-  React.useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-        const cards = document.querySelectorAll('.card-glow-border');
-        cards.forEach(card => {
-            const rect = card.getBoundingClientRect();
-            (card as HTMLElement).style.setProperty('--x', `${e.clientX - rect.left}px`);
-            (card as HTMLElement).style.setProperty('--y', `${e.clientY - rect.top}px`);
-        });
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-    };
-  }, []);
-
   const renderView = () => {
     switch (activeView) {
       case 'chat':
@@ -103,10 +91,14 @@ const App: React.FC = () => {
         return <GithubInspectorView />;
       case 'code-graph':
         return <CodeGraphView />;
+       case 'knowledge-base':
+        return <KnowledgeBaseView />;
       case 'github-pro':
         return <GitHubProView setActiveView={setActiveView} />;
-      case 'agent-memory':
+      case 'learned-memories':
         return <MemoryView />;
+      case 'working-memory':
+        return <WorkingMemoryView />;
       case 'history':
         return <HistoryView />;
       case 'documentation':
@@ -117,9 +109,9 @@ const App: React.FC = () => {
   };
 
   const viewVariants = {
-      initial: { opacity: 0, scale: 0.98 },
-      animate: { opacity: 1, scale: 1 },
-      exit: { opacity: 0, scale: 0.98 },
+      initial: { opacity: 0, y: 15 },
+      animate: { opacity: 1, y: 0 },
+      exit: { opacity: 0, y: -15 },
   };
 
   return (
@@ -127,26 +119,37 @@ const App: React.FC = () => {
         <SettingsProvider>
             <ToastProvider>
                 <GithubProvider>
-                    <div className="flex h-screen bg-background text-foreground font-sans relative overflow-hidden p-4 gap-4">
-                        <div className="background-noise"></div>
-                        <Sidebar activeView={activeView} setActiveView={setActiveView} />
-                        <main className="flex-1 flex flex-col overflow-hidden z-10 glass-effect rounded-lg">
-                            <AnimatePresence mode="wait">
-                                 <motion.div
-                                    key={activeView}
-                                    variants={viewVariants}
-                                    initial="initial"
-                                    animate="animate"
-                                    exit="exit"
-                                    transition={{ duration: 0.2, ease: 'easeInOut' }}
-                                    className="flex-1 flex flex-col overflow-y-auto custom-scrollbar"
-                                    id="main-scroll-container"
-                                 >
-                                    {renderView()}
-                                </motion.div>
-                            </AnimatePresence>
-                        </main>
-                        <StagedFilesIndicator />
+                    <div className="w-screen h-screen bg-transparent text-foreground font-sans relative overflow-hidden">
+                         <div className="absolute inset-0 -z-10 overflow-hidden">
+                            <div className="meteors">
+                                {[...Array(20)].map((_, i) => <div key={i} className="meteor-particle" style={{
+                                    top: `${Math.random() * 100}%`,
+                                    left: `${Math.random() * 100}%`,
+                                    animationDelay: `${Math.random() * 10}s`,
+                                    animationDuration: `${Math.random() * 4 + 3}s`,
+                                }} />)}
+                            </div>
+                        </div>
+                        <div className="flex h-full p-4 gap-4">
+                            <Sidebar activeView={activeView} setActiveView={setActiveView} />
+                            <main className="flex-1 flex flex-col overflow-hidden z-10 glass-effect rounded-lg">
+                                <AnimatePresence mode="wait">
+                                     <motion.div
+                                        key={activeView}
+                                        variants={viewVariants}
+                                        initial="initial"
+                                        animate="animate"
+                                        exit="exit"
+                                        transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+                                        className="flex-1 flex flex-col overflow-y-auto custom-scrollbar"
+                                        id="main-scroll-container"
+                                     >
+                                        {renderView()}
+                                    </motion.div>
+                                </AnimatePresence>
+                            </main>
+                            <StagedFilesIndicator />
+                        </div>
                     </div>
                 </GithubProvider>
             </ToastProvider>

@@ -1,3 +1,4 @@
+
 import { Agent } from "./types";
 import { ChatAgent } from "./ChatAgent";
 import { ReadmeAgent } from "./ReadmeAgent";
@@ -17,6 +18,7 @@ import { IssueLabelAgent } from "./IssueLabelAgent";
 import { ImageRefinementAgent } from "./ImageRefinementAgent";
 import { ContextRetrievalAgent } from "./ContextRetrievalAgent";
 import { ContextOptimizerAgent } from "./ContextOptimizerAgent";
+import { MemoryConsolidationAgent } from "./MemoryConsolidationAgent";
 
 export const initialAgents: Agent[] = [
     ChatAgent,
@@ -37,6 +39,7 @@ export const initialAgents: Agent[] = [
     MemoryAgent,
     ContextRetrievalAgent,
     ContextOptimizerAgent,
+    MemoryConsolidationAgent,
 ];
 
 export const defaultAgent = ChatAgent;

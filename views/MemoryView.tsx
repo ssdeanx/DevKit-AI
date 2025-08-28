@@ -1,13 +1,12 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { agentService } from '../services/agent.service';
 import { agentMemoryService, AgentMemory } from '../services/agent-memory.service';
 import { Agent } from '../agents/types';
-import { DatabaseIcon, CloseIcon, BrainIcon } from '../components/icons';
+import { BrainIcon, CloseIcon } from '../components/icons';
 import ViewHeader from '../components/ViewHeader';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
+import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { cn } from '../lib/utils';
 import EmptyState from '../components/EmptyState';
@@ -72,11 +71,11 @@ const MemoryView: React.FC = () => {
     return (
         <div className="flex flex-col h-full">
             <ViewHeader
-                icon={<DatabaseIcon className="w-6 h-6" />}
-                title="Agent Memory Inspector"
-                description="View and manage the long-term memories for each AI agent."
+                icon={<BrainIcon className="w-6 h-6" />}
+                title="Learned Memories"
+                description="View and manage memories learned from your feedback and self-reflection."
             />
-            <div className="flex-1 p-6 space-y-6">
+            <div className="flex-1 p-6 space-y-6 overflow-y-auto custom-scrollbar">
                 <Card>
                     <CardContent className="p-6">
                         <div className="max-w-md">
@@ -106,7 +105,13 @@ const MemoryView: React.FC = () => {
                                     {memories.map(mem => <MemoryItem key={mem.id} memory={mem} onDelete={handleDeleteMemory} />)}
                                 </div>
                             ) : (
-                                <p className="text-muted-foreground text-center py-8">This agent has no long-term memories yet.</p>
+                                <div className="text-center py-8">
+                                    <EmptyState
+                                        icon={<BrainIcon className="w-10 h-10" />}
+                                        title="No Learned Memories"
+                                        description="This agent hasn't stored any memories yet. Provide feedback on responses to help it learn."
+                                    />
+                                </div>
                             )}
                         </>
                     )}

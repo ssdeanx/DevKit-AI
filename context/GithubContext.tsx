@@ -1,6 +1,6 @@
 import React, { createContext, useState, useCallback, ReactNode, useEffect } from 'react';
 import { githubService, FileNode, StagedFile } from '../services/github.service';
-import { vectorCacheService } from '../services/vector-cache.service';
+import { knowledgeService, IndexedSource } from '../services/knowledge.service';
 import { useToast } from './ToastContext';
 import { cacheService } from '../services/cache.service';
 
@@ -65,7 +65,7 @@ interface GithubContextType {
   unstageFolder: (path: string) => void;
   stageAllFiles: () => void;
   unstageAllFiles: () => void;
-  getIndexedFiles: () => Promise<Set<string>>;
+  getIndexedSources: () => Promise<IndexedSource[]>;
   indexingStatus: IndexingStatus;
 }
 
@@ -84,7 +84,7 @@ export const GithubContext = createContext<GithubContextType>({
   unstageFolder: () => {},
   stageAllFiles: () => {},
   unstageAllFiles: () => {},
-  getIndexedFiles: async () => new Set(),
+  getIndexedSources: async () => [],
   indexingStatus: { total: 0, completed: 0, currentFile: '', chunksTotal: 0, chunksCompleted: 0 },
 });
 
@@ -137,7 +137,7 @@ export const GithubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const processQueue = async () => {
         if (isIndexing || indexingQueue.length === 0) {
             if (!isIndexing && indexingQueue.length === 0 && indexingStatus.total > 0 && indexingStatus.completed === indexingStatus.total) {
-                toast({ title: "Indexing Complete", description: `${indexingStatus.total} files are now available for context.` });
+                toast({ title: "Indexing Complete", description: `${indexingStatus.total} files are now available in the knowledge base.` });
                 setTimeout(() => setIndexingStatus({ total: 0, completed: 0, currentFile: '', chunksTotal: 0, chunksCompleted: 0 }), 2000);
             }
             return;
@@ -150,6 +150,7 @@ export const GithubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         try {
             const content = await githubService.fetchFileContent(repoUrl, path, apiKey);
             const newFile = { path, content };
+            // Add to staged files for UI indicator, but knowledge service is the source of truth for RAG
             setStagedFiles(prev => [...prev.filter(f => f.path !== path), newFile]);
             
             const onProgress = (progress: { processed: number; total: number }) => {
@@ -160,7 +161,7 @@ export const GithubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 }));
             };
 
-            await vectorCacheService.addFile(newFile, onProgress);
+            await knowledgeService.addDocument(path, 'code', content, onProgress);
         } catch (e: any) {
             const errorMessage = e.message || `Failed to fetch/index file: ${path}`;
             setError(errorMessage);
@@ -179,7 +180,7 @@ export const GithubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setError(null);
     setFileTree(null);
     setStagedFiles([]);
-    await vectorCacheService.clear();
+    await knowledgeService.clear();
     setIndexingQueue([]);
     setIndexingStatus({ total: 0, completed: 0, currentFile: '', chunksTotal: 0, chunksCompleted: 0 });
     try {
@@ -220,7 +221,7 @@ export const GithubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const unstageFile = useCallback(async (path: string) => {
     setStagedFiles(prev => prev.filter(f => f.path !== path));
-    await vectorCacheService.removeFile(path);
+    await knowledgeService.removeDocument(path);
   }, []);
 
   const stageFolder = useCallback((path: string) => {
@@ -237,7 +238,7 @@ export const GithubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (!folderNode || folderNode.type !== 'dir') return;
     const filePathsInFolder = getFilePathsFromNode(folderNode);
     setStagedFiles(prev => prev.filter(sf => !filePathsInFolder.includes(sf.path)));
-    await Promise.all(filePathsInFolder.map(p => vectorCacheService.removeFile(p)));
+    await Promise.all(filePathsInFolder.map(p => knowledgeService.removeDocument(p)));
   }, [fileTree]);
 
   const stageAllFiles = useCallback(() => {
@@ -248,15 +249,15 @@ export const GithubProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   
   const unstageAllFiles = useCallback(async () => {
     setStagedFiles([]);
-    await vectorCacheService.clear();
+    await knowledgeService.clear();
   }, []);
   
-  const getIndexedFiles = useCallback(async () => {
-      return vectorCacheService.getIndexedFilePaths();
+  const getIndexedSources = useCallback(async () => {
+      return knowledgeService.getAllDocuments();
   }, []);
 
   return (
-    <GithubContext.Provider value={{ repoUrl, fileTree, stagedFiles, isLoading, error, apiKey, setApiKey, fetchRepo, stageFile, unstageFile, stageFolder, unstageFolder, stageAllFiles, unstageAllFiles, getIndexedFiles, indexingStatus }}>
+    <GithubContext.Provider value={{ repoUrl, fileTree, stagedFiles, isLoading, error, apiKey, setApiKey, fetchRepo, stageFile, unstageFile, stageFolder, unstageFolder, stageAllFiles, unstageAllFiles, getIndexedSources, indexingStatus }}>
       {children}
     </GithubContext.Provider>
   );

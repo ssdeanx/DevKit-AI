@@ -3,66 +3,90 @@ import { StagedFile } from './github.service';
 import { chunkText } from '../lib/text';
 import { embeddingService } from './embedding.service';
 
-interface VectorChunk {
-    id: string; // e.g., 'path/to/file.ts-0'
-    filePath: string;
+export type SourceType = 'code' | 'chat' | 'web' | 'text';
+
+export interface VectorChunk {
+    id: string; // e.g., 'code::path/to/file.ts-0' or 'chat::session123-2'
+    sourceType: SourceType;
+    sourceIdentifier: string; // file path, session id, url, or manual entry id
+    timestamp: number;
     text: string;
     embedding: number[];
 }
 
-const getStoreKey = (filePath: string) => `vector-chunk::${filePath}`;
+export interface IndexedSource {
+    identifier: string;
+    type: SourceType;
+}
+
+const getStoreKey = (sourceIdentifier: string) => `vector-chunks::${sourceIdentifier}`;
 
 class VectorCacheService {
 
-    async addFile(
-        file: StagedFile,
+    async addSource(
+        identifier: string,
+        type: SourceType,
+        content: string,
         onProgress?: (progress: { processed: number; total: number }) => void
     ): Promise<void> {
         try {
-            const chunks = chunkText(file.content);
+            const chunks = chunkText(content);
             if (chunks.length === 0) return;
             
             const embeddings = await embeddingService.getEmbeddings(chunks, 'RETRIEVAL_DOCUMENT', onProgress);
             
             const vectorChunks: VectorChunk[] = chunks.map((chunk, index) => ({
-                id: `${file.path}-${index}`,
-                filePath: file.path,
+                id: `${type}::${identifier}-${index}`,
+                sourceIdentifier: identifier,
+                sourceType: type,
+                timestamp: Date.now(),
                 text: chunk,
                 embedding: embeddings[index],
             }));
 
-            await set(getStoreKey(file.path), vectorChunks);
-            console.log(`VectorCache: Indexed ${vectorChunks.length} chunks for ${file.path}.`);
+            await set(getStoreKey(identifier), vectorChunks);
+            console.log(`VectorCache: Indexed ${vectorChunks.length} chunks for ${type} source '${identifier}'.`);
         } catch (error) {
-            console.error(`VectorCache: Failed to add file ${file.path}:`, error);
+            console.error(`VectorCache: Failed to add source ${identifier}:`, error);
         }
     }
     
-    async removeFile(filePath: string): Promise<void> {
+    async removeSource(sourceIdentifier: string): Promise<void> {
         try {
-            await del(getStoreKey(filePath));
-            console.log(`VectorCache: Removed chunks for ${filePath}.`);
+            await del(getStoreKey(sourceIdentifier));
+            console.log(`VectorCache: Removed chunks for ${sourceIdentifier}.`);
         } catch (error) {
-            console.error(`VectorCache: Failed to remove file ${filePath}:`, error);
+            console.error(`VectorCache: Failed to remove source ${sourceIdentifier}:`, error);
         }
     }
 
     private async _getAllChunks(): Promise<VectorChunk[]> {
         const allKeys = await keys();
-        const chunkKeys = allKeys.filter((key): key is string => typeof key === 'string' && key.startsWith('vector-chunk::'));
+        const chunkKeys = allKeys.filter((key): key is string => typeof key === 'string' && key.startsWith('vector-chunks::'));
         const allChunkArrays = await Promise.all(chunkKeys.map(key => get<VectorChunk[]>(key)));
         return allChunkArrays.flat().filter(Boolean) as VectorChunk[];
     }
     
-    async getIndexedFilePaths(): Promise<Set<string>> {
+    async getIndexedSources(): Promise<IndexedSource[]> {
         const allKeys = await keys();
-        const filePaths = new Set<string>();
-        for (const key of allKeys) {
-            if (typeof key === 'string' && key.startsWith('vector-chunk::')) {
-                filePaths.add(key.replace('vector-chunk::', ''));
+        const sources: IndexedSource[] = [];
+        const seenIdentifiers = new Set<string>();
+
+        const chunkKeys = allKeys.filter((key): key is string => typeof key === 'string' && key.startsWith('vector-chunks::'));
+        const allChunkArrays = await Promise.all(chunkKeys.map(key => get<VectorChunk[]>(key)));
+        
+        const allChunks = allChunkArrays.flat().filter(Boolean) as VectorChunk[];
+
+        for (const chunk of allChunks) {
+            if (chunk && !seenIdentifiers.has(chunk.sourceIdentifier)) {
+                sources.push({
+                    identifier: chunk.sourceIdentifier,
+                    type: chunk.sourceType,
+                });
+                seenIdentifiers.add(chunk.sourceIdentifier);
             }
         }
-        return filePaths;
+        return sources;
     }
 
     private _cosineSimilarity(vecA: number[], vecB: number[]): number {
@@ -102,7 +126,7 @@ class VectorCacheService {
         try {
             const allKeys = await keys();
             const chunkKeysToDelete = allKeys.filter((key): key is string => 
-                typeof key === 'string' && key.startsWith('vector-chunk::')
+                typeof key === 'string' && key.startsWith('vector-chunks::')
             );
             await Promise.all(chunkKeysToDelete.map(key => del(key)));
             console.log("VectorCache: Cleared all indexed chunks.");

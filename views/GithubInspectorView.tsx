@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
 import { GithubContext } from '../context/GithubContext';
 import { GithubIcon, FilesIcon, FileMinusIcon } from '../components/icons';
@@ -12,6 +13,7 @@ import ViewHeader from '../components/ViewHeader';
 import { FileTree } from '../components/FileTree';
 import { useToast } from '../context/ToastContext';
 import { cn } from '../lib/utils';
+import { IndexedSource } from '../services/knowledge.service';
 
 const IndexingProgressBar: React.FC<{ status: { total: number; completed: number; currentFile: string; chunksTotal: number; chunksCompleted: number; } }> = ({ status }) => {
     if (status.total === 0) return null;
@@ -83,7 +85,7 @@ const GithubInspectorView: React.FC = () => {
     const { 
         repoUrl, fileTree, isLoading, error, fetchRepo, 
         stagedFiles, stageFile, unstageFile, stageFolder, unstageFolder,
-        stageAllFiles, unstageAllFiles, apiKey, setApiKey, getIndexedFiles,
+        stageAllFiles, unstageAllFiles, apiKey, setApiKey, getIndexedSources,
         indexingStatus
     } = useContext(GithubContext);
 
@@ -93,12 +95,14 @@ const GithubInspectorView: React.FC = () => {
     const { toast } = useToast();
 
      useEffect(() => {
-        const interval = setInterval(async () => {
-            const files = await getIndexedFiles();
-            setIndexedFiles(files);
-        }, 2000); // Poll for indexed files status
+        const fetchIndexed = async () => {
+            const sources = await getIndexedSources();
+            setIndexedFiles(new Set(sources.filter(s => s.type === 'code').map(s => s.identifier)));
+        };
+        fetchIndexed();
+        const interval = setInterval(fetchIndexed, 2000); // Poll for indexed files status
         return () => clearInterval(interval);
-    }, [getIndexedFiles]);
+    }, [getIndexedSources]);
 
     const toggleFolder = useCallback((path: string) => {
         setExpandedFolders(prev => {

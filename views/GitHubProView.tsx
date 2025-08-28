@@ -98,7 +98,7 @@ const MyPullRequests: React.FC = () => {
                 </Card>
             </div>
              {/* Review Canvas */}
-             <div className="md:col-span-2 h-full flex flex-col relative aurora-canvas canvas-background">
+             <div className="md:col-span-2 h-full flex flex-col relative canvas-background">
                 <div className="flex justify-between items-center p-4 border-b border-border/50 relative z-10">
                     <h3 className="text-lg font-semibold truncate">
                         {selectedPr ? `Review for: ${selectedPr.title}` : 'Generated Code Review'}

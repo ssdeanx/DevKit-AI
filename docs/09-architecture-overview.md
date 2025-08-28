@@ -1,3 +1,4 @@
+
 # Architecture Overview
 
 This document provides a technical overview of the DevKit AI Pro application, its core components, and the data flow for a typical AI request.
@@ -6,33 +7,28 @@ This document provides a technical overview of the DevKit AI Pro application, it
 
 The application is a single-page application (SPA) built with **React** and **TypeScript**. Its architecture is designed around three core principles:
 - **Modularity:** Functionality is broken down into distinct, reusable components and services.
-- **Agentic Design:** Complex AI tasks are handled not by a single model, but by a collection of specialized **Agents**, each with a unique purpose, configuration, and toolset.
-- **Context-Awareness:** The system uses an advanced Retrieval-Augmented Generation (RAG) pipeline to deeply integrate with a developer's project context.
-
-> **💡 Architectural Note:** The agentic design allows for greater maintainability and specialization. Instead of trying to perfect one massive system prompt, we can fine-tune each agent's persona and configuration independently for its specific task, leading to higher-quality results.
+- **Agentic Design:** Complex AI tasks are handled not by a single model, but by a collection of specialized **Agents**.
+- **Cognitive Architecture:** The system uses a multi-tiered memory system (Working, Episodic, Semantic) managed by dedicated **Memory Processor** agents to provide deep contextual understanding.
 
 ## 2. Core Components & Directory Structure
 
--   `/components`: Reusable React components (`Button`, `Card`, `Sidebar`, etc.).
--   `/context`: React Context providers for managing global state (`GithubContext`, `SettingsContext`).
--   `/agents`: The heart of the AI system. Each file defines a specialized `Agent` with its own system prompt, configuration, and execution logic.
--   `/services`: Core logic for interacting with external APIs and managing application state.
--   `/views`: Top-level components that represent the different screens or "tools" of the application (`ChatView`, `ReadmeView`, etc.).
--   `/docs`: Contains all markdown-based documentation files and the `manifest.json`.
+-   `/components`: Reusable React components.
+-   `/context`: React Context providers for global state.
+-   `/agents`: The heart of the AI system. Each file defines a specialized `Agent`.
+-   `/services`: Core logic for external APIs and managing the three memory tiers.
+-   `/views`: Top-level components representing the app's different screens.
 
 ### Key Services
 
--   `gemini.service.ts`: A lightweight wrapper around the `@google/genai` SDK.
--   `embedding.service.ts`: Handles creating vector embeddings for text.
--   `vector-cache.service.ts`: An in-browser vector database using IndexedDB.
--   `github.service.ts`: Handles all interactions with the GitHub API.
--   `agent.service.ts`: Manages the state of all available agents and their configurations.
--   `orchestrator.ts`: Analyzes user intent to select the most appropriate agent.
--   `supervisor.ts`: The central controller for all AI interactions.
--   `short-term-memory.service.ts`: A simple in-memory store for the current conversation.
--   `agent-memory.service.ts`: Manages long-term memories in IndexedDB.
+-   `gemini.service.ts`: Wrapper around the `@google/genai` SDK.
+-   `supervisor.ts`: The central controller that manages the overall execution flow.
+-   `orchestrator.ts`: Analyzes user intent to select the best agent.
+-   `working-memory.service.ts`: Manages the volatile, task-specific "scratchpad."
+-   `history.service.ts`: Manages the chronological log of conversation (Episodic Memory).
+-   `knowledge.service.ts`: Manages the long-term vector store (Semantic Memory).
+-   `agent-memory.service.ts`: Manages learned memories from user feedback.
 
-## 3. The RAG Workflow: A Request's Lifecycle
+## 3. The Cognitive Workflow: A Request's Lifecycle
 
 This sequence describes what happens when a user sends a message from the `ChatView`.
 
@@ -41,9 +37,9 @@ sequenceDiagram
     actor User
     participant ChatView
     participant Supervisor
-    participant ContextRetrievalAgent
-    participant VectorCache
     participant Orchestrator
+    participant ContextRetrievalAgent as Retrieval Processor
+    participant MemoryServices as Memory Tiers
     participant MainAgent
     participant GeminiAPI
 
@@ -51,48 +47,38 @@ sequenceDiagram
     ChatView->>Supervisor: 2. handleRequest(prompt)
     
     Supervisor->>Orchestrator: 3. selectAgent(prompt)
-    Orchestrator-->>Supervisor: 4. Returns chosen Agent (e.g., ChatAgent)
+    Orchestrator-->>Supervisor: 4. Returns chosen Agent
+    
+    Supervisor->>Retrieval Processor: 5. Execute Context Retrieval
+    Note over Retrieval Processor, Memory Tiers: Queries Working, Episodic,<br/>and Semantic memory
+    Retrieval Processor->>MemoryServices: 5a. Fetch context
+    MemoryServices-->>Retrieval Processor: 5b. Return context data
+    Retrieval Processor-->>Supervisor: 5c. Returns formatted context string
 
-    alt Context Retrieval
-        Supervisor->>ContextRetrievalAgent: 5a. retrieveContext(prompt)
-        ContextRetrievalAgent->>GeminiAPI: 5b. Embed query
-        GeminiAPI-->>ContextRetrievalAgent: 5c. Returns query vector
-        ContextRetrievalAgent->>VectorCache: 5d. Search for similar vectors
-        VectorCache-->>ContextRetrievalAgent: 5e. Returns relevant code chunks
-        ContextRetrievalAgent-->>Supervisor: 5f. Returns formatted context string
-    end
+    Supervisor->>MainAgent: 6. execute(fullContext)
+    MainAgent->>GeminiAPI: 7. generateContentStream()
     
-    loop Context Assembly
-        Supervisor->>Supervisor: 6. Gathers RAG context, STM, LTM
-    end
-
-    Supervisor->>MainAgent: 7. execute(fullContext)
-    MainAgent->>GeminiAPI: 8. generateContentStream()
+    GeminiAPI-->>MainAgent: 8. Streams response chunks
+    MainAgent-->>Supervisor: 9. Streams response chunks
+    Supervisor-->>ChatView: 10. Streams response chunks
     
-    GeminiAPI-->>MainAgent: 9. Streams response chunks
-    MainAgent-->>Supervisor: 10. Streams response chunks
-    Supervisor-->>ChatView: 11. Streams response chunks
-    
-    ChatView-->>User: 12. Displays streaming response
+    ChatView-->>User: 11. Displays streaming response
 ```
 
-1.  **Request Initiation (`ChatView.tsx`):** The user's prompt is captured and `supervisor.handleRequest()` is called.
+1.  **Request Initiation (`ChatView.tsx`):** The user's prompt is captured, and the `supervisor` clears the **Working Memory** for the new task.
 
-2.  **Agent Selection (`orchestrator.ts`):** The `supervisor` first calls `orchestrator.selectAgent()` to determine the best agent for the user's intent.
+2.  **Agent Selection (`orchestrator.ts`):** The `supervisor` calls the `orchestrator` to determine the user's intent and select the best primary agent.
 
-3.  **Context Retrieval (`supervisor.ts` & `ContextRetrievalAgent.ts`):** The `supervisor` invokes the `ContextRetrievalAgent`. This agent embeds the user's query and searches the `vector-cache` for the most semantically similar code chunks from the staged files.
+3.  **Context Retrieval (`ContextRetrievalAgent.ts`):** The `supervisor` delegates context assembly to the **Retrieval Processor**. This agent systematically queries all three memory tiers:
+    -   It fetches the current plan from **Working Memory**.
+    -   It gets the last few messages from **Episodic Memory** (the chat history).
+    -   It performs a vector search on **Semantic Memory** (the knowledge base) for relevant facts and code.
 
-4.  **Context Assembly (`supervisor.ts`):** The `supervisor` gathers all available context: the retrieved code chunks from the RAG step, short-term memory (conversation history), and long-term memory (learned facts).
+4.  **Agent Execution (`agents/*.ts`):** The `supervisor` passes the rich, formatted context from the retrieval agent to the primary agent's `.execute()` method. The agent makes a streaming call to the Gemini API.
 
-5.  **Execution Planning (`supervisor.ts`):**
-    -   **If the agent is `PlannerAgent`:** A multi-step workflow is initiated.
-    -   **If the agent is any other agent:** A single-step workflow is executed.
+5.  **Response Streaming (`ChatView.tsx`):** The `ChatView` consumes the stream from the `supervisor` and updates the UI in real-time. The `supervisor` also updates the **Working Memory** with any new observations or thoughts from the agent.
 
-6.  **Agent Execution (`agents/*.ts`):** The `supervisor` calls the `.execute()` method on the chosen agent, passing the fully assembled context. The agent makes a streaming call to the Gemini API.
-
-7.  **Response Streaming (`ChatView.tsx`):** The `ChatView` consumes the stream from the `supervisor` and updates the UI in real-time.
-
-8.  **Memory Consolidation (`supervisor.ts`):** After the turn is complete, the `supervisor` may trigger the `MemoryAgent` to summarize the interaction and save any important information to long-term memory.
+6.  **Memory Consolidation (Optional):** After the turn, a **Consolidation Processor** (`MemoryConsolidationAgent`) can be triggered to analyze the chat history, extract key insights, and save them as new facts in the **Semantic Memory**, allowing the AI to learn from the conversation.
 
 ---
-*Version 1.6.0*
+*Version 1.9.0*

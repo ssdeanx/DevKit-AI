@@ -332,12 +332,14 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
           <div className="pl-4 mb-2">
             <RepoStatusIndicator />
           </div>
-          <ChatInput 
-            inputValue={inputValue}
-            setInputValue={setInputValue}
-            isLoading={isLoading}
-            onSubmit={handleFormSubmit}
-          />
+          <div className="chat-input-glow">
+            <ChatInput 
+              inputValue={inputValue}
+              setInputValue={setInputValue}
+              isLoading={isLoading}
+              onSubmit={handleFormSubmit}
+            />
+          </div>
       </div>
       
       <FeedbackModal 

@@ -1,7 +1,7 @@
 
 import React, { useContext } from 'react';
 import { ViewName } from '../App';
-import { ChatIcon, DocumentIcon, ImageIcon, GithubIcon, HistoryIcon, SettingsIcon, CodeGraphIcon, LogoIcon, SunIcon, MoonIcon, DatabaseIcon, BookOpenIcon, GitPullRequestIcon } from './icons';
+import { ChatIcon, DocumentIcon, ImageIcon, GithubIcon, HistoryIcon, SettingsIcon, CodeGraphIcon, LogoIcon, SunIcon, MoonIcon, BrainIcon, DatabaseIcon, BookOpenIcon, GitPullRequestIcon, WorkflowIcon } from './icons';
 import { Button } from './ui/Button';
 import { cn } from '../lib/utils';
 import { GithubContext } from '../context/GithubContext';
@@ -66,7 +66,7 @@ const NavItem: React.FC<{
             className={cn(
                 "flex items-center w-full text-left p-3 rounded-lg transition-all duration-200 text-sm font-medium relative",
                 "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                isActive && "text-foreground bg-accent",
+                isActive && "bg-primary/10 text-primary font-semibold",
                 config.disabled && "opacity-50 cursor-not-allowed"
             )}
         >
@@ -84,27 +84,28 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
     const { repoUrl } = useContext(GithubContext);
 
     const navItems: NavItemConfig[] = [
-        // AI Tools
-        { id: 'chat', label: 'Chat', icon: <ChatIcon />, group: 'AI TOOLS' },
-        { id: 'project-rules', label: 'Project Rules', icon: <DocumentIcon />, group: 'AI TOOLS' },
-        { id: 'readme-generator', label: 'README Pro', icon: <DocumentIcon />, group: 'AI TOOLS', disabled: !repoUrl },
-        { id: 'icon-generator', label: 'Icon Generator', icon: <ImageIcon />, group: 'AI TOOLS' },
-        { id: 'logo-generator', label: 'Logo/Banner Gen', icon: <ImageIcon />, group: 'AI TOOLS' },
+        // AI GROUP
+        { id: 'chat', label: 'Chat', icon: <ChatIcon />, group: 'AI' },
         
-        // Project
+        // PROJECT GROUP
         { id: 'github-inspector', label: 'GitHub Inspector', icon: <GithubIcon />, group: 'PROJECT' },
-        { id: 'code-graph', label: 'Code Graph', icon: <CodeGraphIcon />, group: 'PROJECT', disabled: !repoUrl },
-        { id: 'agent-memory', label: 'Agent Memory', icon: <DatabaseIcon />, group: 'PROJECT' },
-
-        // GitHub Pro
-        { id: 'github-pro', label: 'GitHub Pro', icon: <GitPullRequestIcon />, group: 'GITHUB PRO' },
+        { id: 'github-pro', label: 'GitHub Pro', icon: <GitPullRequestIcon />, group: 'PROJECT', disabled: !repoUrl, tooltip: !repoUrl ? "Load a repo first" : undefined },
+        { id: 'code-graph', label: 'Code Graph', icon: <CodeGraphIcon />, group: 'PROJECT', disabled: !repoUrl, tooltip: !repoUrl ? "Load a repo first" : undefined },
         
-        // App
-        { id: 'documentation', label: 'Documentation', icon: <BookOpenIcon />, group: 'APP' },
-        { id: 'history', label: 'History', icon: <HistoryIcon />, group: 'APP' },
-        { id: 'settings', label: 'Settings', icon: <SettingsIcon />, group: 'APP' },
+        // GENERATORS GROUP
+        { id: 'readme-generator', label: 'README Pro', icon: <DocumentIcon />, group: 'GENERATORS' },
+        { id: 'project-rules', label: 'Specification Generator', icon: <DocumentIcon />, group: 'GENERATORS', disabled: !repoUrl, tooltip: !repoUrl ? "Load a repo first" : undefined },
+        { id: 'icon-generator', label: 'Icon Generator', icon: <ImageIcon />, group: 'GENERATORS' },
+        { id: 'logo-generator', label: 'Logo Generator', icon: <ImageIcon />, group: 'GENERATORS' },
+        
+        // MEMORY GROUP
+        { id: 'working-memory', label: 'Working Memory', icon: <WorkflowIcon />, group: 'MEMORY' },
+        { id: 'knowledge-base', label: 'Knowledge Base', icon: <DatabaseIcon />, group: 'MEMORY' },
+        { id: 'learned-memories', label: 'Learned Memories', icon: <BrainIcon />, group: 'MEMORY' },
     ];
     
+    const groupOrder = ['AI', 'PROJECT', 'GENERATORS', 'MEMORY'];
+
     const groupedItems = navItems.reduce((acc, item) => {
         if (!acc[item.group]) {
             acc[item.group] = [];
@@ -112,31 +113,34 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
         acc[item.group].push(item);
         return acc;
     }, {} as Record<string, NavItemConfig[]>);
-    
-    return (
-        <aside className="w-64 flex-shrink-0 flex flex-col glass-effect rounded-lg p-4">
-            <div className="flex items-center gap-3 p-3 mb-4">
-                <div className="p-2 bg-primary rounded-lg">
-                    <LogoIcon className="w-6 h-6 text-primary-foreground" />
-                </div>
-                <h1 className="text-xl font-bold">DevKit AI Pro</h1>
-            </div>
 
-            <nav className="flex-1 space-y-4 overflow-y-auto custom-scrollbar pr-2">
-                {Object.entries(groupedItems).map(([group, items]) => (
-                    <div key={group}>
-                        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">{group}</h2>
-                        <div className="space-y-1">
-                            {items.map(item => (
-                                <NavItem key={item.id} config={item} activeView={activeView} setActiveView={setActiveView} />
-                            ))}
+    return (
+        <aside className="w-64 flex-shrink-0 flex flex-col z-10 glass-effect rounded-lg p-4">
+             <div className="flex items-center gap-3 mb-4 p-2">
+                <LogoIcon className="w-8 h-8 text-primary" />
+                <h1 className="text-xl font-bold tracking-tight">DevKit AI Pro</h1>
+            </div>
+            <nav className="flex-1 space-y-4 overflow-y-auto custom-scrollbar -mr-2 pr-2">
+                {groupOrder.map(groupName => {
+                    const items = groupedItems[groupName];
+                    if (!items) return null;
+                    return (
+                        <div key={groupName}>
+                            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">{groupName}</h2>
+                            <div className="space-y-1">
+                                {items.map(item => (
+                                    <NavItem key={item.id} config={item} activeView={activeView} setActiveView={setActiveView} />
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </nav>
-            
-            <div className="mt-auto pt-4">
+            <div className="mt-auto space-y-2">
                 <ThemeSwitcher />
+                <NavItem config={{id: 'documentation', label: 'Documentation', icon: <BookOpenIcon />, group: ''}} activeView={activeView} setActiveView={setActiveView} />
+                <NavItem config={{id: 'history', label: 'History', icon: <HistoryIcon />, group: ''}} activeView={activeView} setActiveView={setActiveView} />
+                <NavItem config={{id: 'settings', label: 'Settings', icon: <SettingsIcon />, group: ''}} activeView={activeView} setActiveView={setActiveView} />
             </div>
         </aside>
     );

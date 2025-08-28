@@ -1,3 +1,4 @@
+
 # Meet the Agents: Your Specialized AI Team
 
 The power of DevKit AI Pro lies in its roster of specialized agents. Each agent is an AI with a unique persona, a specific task, and a tailored configuration. The **Orchestrator** automatically selects the best agent for your request, but understanding their roles can help you craft more effective prompts.
@@ -30,6 +31,7 @@ mindmap
       ImageRefinementAgent
       MemoryAgent
       ContextRetrievalAgent
+      MemoryConsolidationAgent
 ```
 
 ---
@@ -84,12 +86,13 @@ mindmap
 
 ---
 
-### System & Utility Agents
+### System & Memory Agents
 
-| Agent Name                | Purpose & Best Use Case                                                                                                                                                                   |
-| :------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`ContextRetrievalAgent`** | A background agent that embeds your query and performs a semantic search against the vector cache of your staged code to find the most relevant code chunks for the primary agent to use. |
-| **`MemoryAgent`**           | A system agent that works in the background. It's responsible for summarizing conversations and checking for novel information to store in long-term memory. It is not intended for direct user interaction. |
+| Agent Name                     | Purpose & Best Use Case                                                                                                                                                                                             |
+| :----------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`ContextRetrievalAgent`**    | The central "retrieval processor." Before a primary agent runs, this agent queries all memory tiers (Working, Episodic, Semantic) to assemble a rich, comprehensive context package.                               |
+| **`MemoryConsolidationAgent`** | The "consolidation processor." This agent reads raw conversation history (Episodic Memory) and extracts key facts or preferences, creating clean summaries to be stored in the long-term Knowledge Base (Semantic Memory). |
+| **`MemoryAgent`**              | A low-level system agent responsible for checking memory novelty and performing summarization tasks. It is called by other services and is not intended for direct user interaction.                                      |
 
 ---
-*Version 1.6.0*
+*Version 1.9.0*
