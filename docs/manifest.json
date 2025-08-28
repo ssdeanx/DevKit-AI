@@ -34,7 +34,8 @@
                 { "path": "docs/09-architecture-overview.md", "title": "Architecture Overview", "subtitle": "A technical deep-dive." },
                 { "path": "docs/10-whats-new.md", "title": "What's New?", "subtitle": "Changelog and updates." },
                 { "path": "docs/11-troubleshooting.md", "title": "Troubleshooting & FAQ", "subtitle": "Common questions answered." },
-                { "path": "docs/14-workflow-token-tracking.md", "title": "Workflow Token Tracking", "subtitle": "See token usage per agent step." }
+                { "path": "docs/14-workflow-token-tracking.md", "title": "Workflow Token Tracking", "subtitle": "See token usage per agent step." },
+                { "path": "docs/15-advanced-function-calling.md", "title": "Advanced Function Calling", "subtitle": "Parallel & compositional tool use." }
             ]
         }
     ]

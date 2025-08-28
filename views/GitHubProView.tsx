@@ -21,7 +21,7 @@ import { IssueLabelAgent } from '../agents/IssueLabelAgent';
 import GenerationInProgress from '../components/GenerationInProgress';
 
 const MyPullRequests: React.FC = () => {
-    const { apiKey } = useContext(GithubContext);
+    const { apiKey, repoUrl } = useContext(GithubContext);
     const { data: prs, isLoading, error, execute: fetchPrs } = useAsyncOperation(githubService.fetchUserPullRequests);
     const [selectedPr, setSelectedPr] = useState<PullRequestSummary | null>(null);
     const [fetchedFiles, setFetchedFiles] = useState<StagedFile[] | null>(null);
@@ -33,7 +33,8 @@ const MyPullRequests: React.FC = () => {
             throw new Error("No files from the pull request are available for review.");
         }
         const prompt = `Please review the code changes in the following files from a pull request. The URL of the PR is: ${selectedPr.url}. Provide a comprehensive review covering potential bugs, style issues, and adherence to best practices. Offer constructive suggestions for improvement.`;
-        return supervisor.handleRequest(prompt, { fileTree: null, stagedFiles: fetchedFiles, apiKey }, { setActiveView: () => {} }, PullRequestAgent.id);
+        // FIX: Pass repoUrl to satisfy FullGitContext type
+        return supervisor.handleRequest(prompt, { repoUrl, fileTree: null, stagedFiles: fetchedFiles, apiKey }, { setActiveView: () => {} }, PullRequestAgent.id);
     });
 
     const handleSelectPr = async (pr: PullRequestSummary) => {
@@ -202,13 +203,14 @@ const RepoSearch: React.FC<{ setActiveView: (view: ViewName) => void }> = ({ set
 
 const IssueLabeler: React.FC = () => {
     const [issueUrl, setIssueUrl] = useState('');
-    const { apiKey } = useContext(GithubContext);
+    const { apiKey, repoUrl } = useContext(GithubContext);
 
     const labelOperation = useStreamingOperation(async () => {
         if (!issueUrl.trim()) throw new Error("Please enter a GitHub issue URL.");
         if (!apiKey) throw new Error("A GitHub API key is required for this operation.");
         const prompt = `Please analyze and apply labels to the following GitHub issue: ${issueUrl}`;
-        return supervisor.handleRequest(prompt, { fileTree: null, stagedFiles: [], apiKey }, { setActiveView: () => {} }, IssueLabelAgent.id);
+        // FIX: Pass repoUrl to satisfy FullGitContext type
+        return supervisor.handleRequest(prompt, { repoUrl, fileTree: null, stagedFiles: [], apiKey }, { setActiveView: () => {} }, IssueLabelAgent.id);
     });
 
     return (

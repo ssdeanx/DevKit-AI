@@ -51,7 +51,8 @@ const ReadmeView: React.FC = () => {
 
     const prompt = `Generate a README for a project with the following description and context: ${description}`;
     console.log(`ReadmeView: Generating README with prompt: "${prompt}" (no cache)`);
-    return supervisor.handleRequest(prompt, { fileTree, stagedFiles, apiKey }, { setActiveView: () => {} }, ReadmeAgent.id);
+    // FIX: Pass repoUrl to satisfy FullGitContext type
+    return supervisor.handleRequest(prompt, { repoUrl, fileTree, stagedFiles, apiKey }, { setActiveView: () => {} }, ReadmeAgent.id);
   });
   
   // Cache the result after a successful operation

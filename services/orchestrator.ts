@@ -6,15 +6,22 @@ import { agentService } from "./agent.service";
 import { Type } from "@google/genai";
 import { cacheService } from "./cache.service";
 import { agentPerformanceService } from "./agent-performance.service";
+import { FileNode, StagedFile } from "./github.service";
+
+interface FullGitContext {
+    repoUrl: string;
+    fileTree: FileNode[] | null;
+    stagedFiles: StagedFile[];
+}
 
 class Orchestrator {
-    async selectAgent(prompt: string): Promise<{ agent: Agent, reasoning: string }> {
+    async selectAgent(prompt: string, githubContext: FullGitContext): Promise<{ agent: Agent, reasoning: string }> {
         const availableAgents = agentService.getAgents();
         if (availableAgents.length === 1) {
             return { agent: availableAgents[0], reasoning: "Only one agent available." };
         }
 
-        const cacheKey = `orchestrator::v4::${prompt}`;
+        const cacheKey = `orchestrator::v4::${prompt}::context:${githubContext.repoUrl}-${githubContext.stagedFiles.length}`;
         const cachedDecision = await cacheService.get<{ agent_name: string; reasoning: string }>(cacheKey);
         
         if (cachedDecision) {
@@ -46,14 +53,23 @@ ${performanceSummary}
 `;
         }
 
+        let contextSummary = 'Context: No specific project context is available.';
+        if (githubContext.repoUrl) {
+            const repoName = githubContext.repoUrl.split('/').slice(-2).join('/');
+            if (githubContext.stagedFiles.length > 0) {
+                contextSummary = `Context: The user is working in the '${repoName}' repository and has staged ${githubContext.stagedFiles.length} file(s). This suggests a task related to code analysis, generation, or modification.`;
+            } else {
+                contextSummary = `Context: The user has loaded the '${repoName}' repository but has not staged any specific files. The task might be about the project as a whole.`;
+            }
+        }
 
         const systemInstruction = `You are an expert request router performing meta-cognition. Your goal is to select the best agent to handle a user's request from the provided list.
 
 Your process is a strict two-step Chain-of-Thought:
-1.  **Analyze Intent**: First, classify the user's core intent. Is it code analysis, file generation, UI control, web research, text refinement, planning a multi-step task, or general conversation?
-2.  **Select Agent**: Based on the identified intent and historical performance data, select the single most specialized and effective agent from the list below. Your selection must be precise.
+1.  **Analyze Intent & Context**: First, classify the user's core intent based on their request and the provided application context. Is it code analysis, file generation, UI control, web research, text refinement, planning a multi-step task, or general conversation?
+2.  **Select Agent**: Based on the identified intent, application context, and historical performance data, select the single most specialized and effective agent from the list below. Your selection must be precise.
 
-You must respond with a JSON object that strictly follows this schema: {"reasoning": "A brief explanation of your choice, starting with the identified intent and referencing performance if it was a factor.", "agent_name": "The exact name of the best agent"}.
+You must respond with a JSON object that strictly follows this schema: {"reasoning": "A brief explanation of your choice, starting with the identified intent and referencing context/performance if they were factors.", "agent_name": "The exact name of the best agent"}.
 
 ${performanceContext}
 
@@ -63,30 +79,24 @@ ${availableAgents.map(a => `- **${a.name}**: ${a.description}`).join('\n')}
 ---
 **Few-Shot Routing Examples:**
 
+Context: The user is working in the 'DevKit-AI' repository and has staged 3 file(s).
 User request: "I need a professional README for my new TypeScript project."
-Your response: {"reasoning": "Intent: File Generation. The user explicitly asked for a README, so the ReadmeAgent is the perfect fit.", "agent_name": "ReadmeAgent"}
+Your response: {"reasoning": "Intent: File Generation. The user explicitly asked for a README and has project context loaded, so the ReadmeAgent is the perfect fit.", "agent_name": "ReadmeAgent"}
 
+Context: No specific project context is available.
 User request: "find out who won the latest F1 race and then write a short, triumphant paragraph about the winner."
 Your response: {"reasoning": "Intent: Multi-step Information Processing. This requires finding information (ResearchAgent) and then rewriting it (RefinerAgent). This complex task is best handled by the PlannerAgent.", "agent_name": "PlannerAgent"}
 
+Context: No specific project context is available.
 User request: "navigate to the icon generator"
 Your response: {"reasoning": "Intent: UI Control. The user wants to control the application's UI. The FunctionCallingAgent is designed for this.", "agent_name": "FunctionCallingAgent"}
-
-User request: "What does this code do: function (a,b) { return a+b; }"
-Your response: {"reasoning": "Intent: Code Explanation. This is a general development query about a piece of code, best handled by the ChatAgent.", "agent_name": "ChatAgent"}
-
-User request: "hello, how are you today?"
-Your response: {"reasoning": "Intent: General Conversation. This is a simple conversational query, which is the primary role of the ChatAgent.", "agent_name": "ChatAgent"}
-
-User request: "list the top 5 sci-fi movies of all time as a JSON array"
-Your response: {"reasoning": "Intent: Structured Data Generation. The user is asking for a list in a specific JSON format. The StructuredOutputAgent is designed for this.", "agent_name": "StructuredOutputAgent"}
 ---
 `;
 
         try {
-            console.log(`Orchestrator: Selecting agent for prompt: "${prompt}"`);
+            console.log(`Orchestrator: Selecting agent for prompt: "${prompt}" with context: ${contextSummary}`);
             const response = await geminiService.generateContent({
-                contents: [{ parts: [{ text: `User request: "${prompt}"` }] }],
+                contents: [{ parts: [{ text: `**Application Context:** ${contextSummary}\n\n**User request:** "${prompt}"` }] }],
                 config: {
                     systemInstruction,
                     temperature: 0,

@@ -1,30 +1,16 @@
+
 import { geminiService } from '../services/gemini.service';
 import { Agent, AgentExecuteStream } from './types';
 import { Type, Part, Content, MediaResolution } from '@google/genai';
 
-const AGENT_DEFINITIONS = [
-    { name: 'ChatAgent', description: 'Answers general programming questions, explains code, or engages in conversation. Can also execute code.' },
-    { name: 'ReadmeAgent', description: 'Generates a professional README.md file by analyzing project structure and description.' },
-    { name: 'ProjectRulesAgent', description: 'Generates a "Project Constitution" defining coding standards based on the repository.' },
-    { name: 'PullRequestAgent', description: 'Performs an expert code review of a pull request, providing actionable feedback.' },
-    { name: 'IssueLabelAgent', description: 'Analyzes a GitHub issue via its URL and applies the correct labels.'},
-    { name: 'ResearchAgent', description: 'Uses Google Search to answer questions about recent events or topics requiring web data.' },
-    { name: 'RefinerAgent', description: 'Refines, rewrites, or improves existing text based on a specific instruction (e.g., "make this more professional").' },
-    { name: 'IconPromptAgent', description: 'Generates detailed, creative prompts for an AI image generator from a simple idea.' },
-    { name: 'ImageRefinementAgent', description: 'A multimodal agent that refines image prompts based on visual and text feedback.'},
-    { name: 'CodeExecutionAgent', description: 'Writes and executes Python code to solve complex problems, perform calculations, or analyze data.' },
-    { name: 'StructuredOutputAgent', description: 'Outputs structured JSON data based on a schema (e.g., "list 5 movies as a JSON array").' },
-    { name: 'UrlAgent', description: 'Summarizes or answers questions about content from a provided web page URL.' },
-    { name: 'FunctionCallingAgent', description: 'Controls the application UI or settings via function calls (e.g., "navigate to settings").' },
-    { name: 'CodeGraphAgent', description: 'Analyzes the repository file structure and generates a visual dependency graph.' },
-    { name: 'ContextOptimizerAgent', description: 'Analyzes a user query and a list of files to select the most relevant subset of files for context. Use this as a first step for complex code queries.' }
-];
+const getSystemInstruction = (agentService: any): string => {
+    const availableAgents = agentService.getAgents()
+        .filter((a: Agent) => !['PlannerAgent', 'MemoryAgent', 'ContextRetrievalAgent', 'MemoryConsolidationAgent'].includes(a.name));
 
-const agentNames = AGENT_DEFINITIONS.map(a => a.name);
-const agentDescriptions = AGENT_DEFINITIONS.map(a => `- **${a.name}**: ${a.description}`).join('\n');
+    const agentDescriptions = availableAgents.map((a: Agent) => `- **${a.name}**: ${a.description}`).join('\n');
+    const agentNames = availableAgents.map((a: Agent) => `"${a.name}"`);
 
-
-const systemInstruction = `### PERSONA
+    return `### PERSONA
 You are a "Master Planner" AI, an expert in task decomposition and strategic planning. You use a "Graph of Thoughts" process to arrive at the optimal execution plan.
 
 ### TASK & GOAL
@@ -35,6 +21,12 @@ Your task is to create a JSON execution plan to address the user's complex, mult
 2.  **Identify Edges (Dependencies):** Determine the relationships between the tasks. Task B cannot start until Task A is complete, creating a directed edge A -> B.
 3.  **Select Tools:** Assign the most specialized agent from the list below to each node.
 4.  **Synthesize Plan:** Convert the final, optimal graph into a linear sequence of steps for execution.
+
+### NEW CAPABILITY: CONTEXT OPTIMIZATION
+If the user's request is complex and involves a large code context, your FIRST step should OFTEN be to use the \`ContextOptimizerAgent\`. This agent will read the user's query and the list of available files, and intelligently select only the most relevant files. This makes subsequent steps much more efficient and accurate.
+- **Use Case:** User asks "Refactor the authentication flow," and many files are staged.
+- **Your Plan (Step 1):** \`{ "step": 1, "agent": "ContextOptimizerAgent", "task": "Based on the user query 'Refactor the authentication flow', select the most relevant files from the provided context." }\`
+- **Your Plan (Step 2):** \`{ "step": 2, "agent": "ChatAgent", "task": "Using the optimized file context from step 1, refactor the authentication flow." }\`
 
 ### AVAILABLE AGENTS
 ${agentDescriptions}
@@ -60,25 +52,32 @@ Your entire output MUST be a single, valid JSON object conforming to the schema.
 - **Efficiency:** A single-step plan is valid if one agent can handle the entire request. Do not over-complicate.
 - The "agent" name must be an exact match from the provided list.
 - Your entire output MUST be only the JSON object.`;
+};
 
-const responseSchema = {
-    type: Type.OBJECT,
-    properties: {
-        plan: {
-            type: Type.ARRAY,
-            description: "The array of steps to execute.",
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    step: { type: Type.NUMBER, description: "The step number." },
-                    agent: { type: Type.STRING, description: "The name of the agent for this step.", enum: agentNames },
-                    task: { type: Type.STRING, description: "The task for the agent to perform, explicitly mentioning dependencies on previous steps." }
-                },
-                required: ["step", "agent", "task"]
+const getResponseSchema = (agentService: any) => {
+    const availableAgents = agentService.getAgents()
+        .filter((a: Agent) => !['PlannerAgent', 'MemoryAgent', 'ContextRetrievalAgent', 'MemoryConsolidationAgent'].includes(a.name));
+    const agentNames = availableAgents.map((a: Agent) => a.name);
+
+    return {
+        type: Type.OBJECT,
+        properties: {
+            plan: {
+                type: Type.ARRAY,
+                description: "The array of steps to execute.",
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        step: { type: Type.NUMBER, description: "The step number." },
+                        agent: { type: Type.STRING, description: "The name of the agent for this step.", enum: agentNames },
+                        task: { type: Type.STRING, description: "The task for the agent to perform, explicitly mentioning dependencies on previous steps." }
+                    },
+                    required: ["step", "agent", "task"]
+                }
             }
-        }
-    },
-    required: ["plan"]
+        },
+        required: ["plan"]
+    };
 };
 
 
@@ -88,11 +87,10 @@ export const PlannerAgent: Agent = {
     description: 'Decomposes complex, multi-step tasks into a plan for other agents to execute.',
     config: {
         config: {
-            systemInstruction,
+            // System instruction and schema are now dynamic and will be added in execute()
             temperature: 0.0,
             responseMimeType: "application/json",
-            responseSchema: responseSchema,
-             thinkingConfig: {
+            thinkingConfig: {
                 includeThoughts: true,
                 thinkingBudget: -1,
             },
@@ -100,11 +98,24 @@ export const PlannerAgent: Agent = {
         }
     },
     execute: async function* (contents: Content[]): AgentExecuteStream {
-        // This agent is non-streaming for its main content (the plan) to ensure a valid JSON is produced.
-        // However, we can still stream its thought process.
+        // Dynamic import to break circular dependency
+        const { agentService } = await import('../services/agent.service');
+
+        const systemInstruction = getSystemInstruction(agentService);
+        const responseSchema = getResponseSchema(agentService);
+        
+        const dynamicConfig = {
+            ...this.config,
+            config: {
+                ...this.config.config,
+                systemInstruction,
+                responseSchema,
+            }
+        };
+
         const stream = await geminiService.generateContentStream({
             contents: contents,
-            ...this.config,
+            ...dynamicConfig,
         });
 
         let fullContent = '';
@@ -131,7 +142,6 @@ export const PlannerAgent: Agent = {
             }
         }
         
-        // Yield the final, complete JSON plan.
         yield { type: 'content', content: fullContent, agentName: this.name };
     }
 };

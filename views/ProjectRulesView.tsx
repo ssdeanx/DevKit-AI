@@ -1,4 +1,5 @@
 
+
 import React, { useState, useContext, useEffect } from 'react';
 import { supervisor } from '../services/supervisor';
 import { GithubContext } from '../context/GithubContext';
@@ -40,7 +41,8 @@ const ProjectRulesView: React.FC = () => {
     }
 
     console.log(`ProjectRulesView: Generating document for request: "${request}" (no cache)`);
-    return supervisor.handleRequest(request, { fileTree, stagedFiles, apiKey }, { setActiveView: () => {} }, ProjectRulesAgent.id);
+    // FIX: Pass repoUrl to satisfy FullGitContext type
+    return supervisor.handleRequest(request, { repoUrl, fileTree, stagedFiles, apiKey }, { setActiveView: () => {} }, ProjectRulesAgent.id);
   });
   
   // Cache the result after a successful operation

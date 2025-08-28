@@ -140,7 +140,8 @@ const ChatView: React.FC<{ setActiveView: (view: ViewName) => void; }> = ({ setA
     let currentRunId: string | undefined = undefined;
 
     try {
-        const { agent, stream } = await supervisor.handleRequest(prompt, { fileTree, stagedFiles, apiKey }, { setActiveView }, undefined, retryContext);
+        // FIX: Pass repoUrl to satisfy FullGitContext type
+        const { agent, stream } = await supervisor.handleRequest(prompt, { repoUrl, fileTree, stagedFiles, apiKey }, { setActiveView }, undefined, retryContext);
         finalAgentName = agent.name;
       
         const aiMessageId = `ai-${Date.now()}`;

@@ -18,6 +18,7 @@ import { ContextOptimizerAgent } from '../agents/ContextOptimizerAgent';
 import { workingMemoryService } from './working-memory.service';
 
 interface FullGitContext {
+    repoUrl: string;
     fileTree: FileNode[] | null;
     stagedFiles: StagedFile[];
 }
@@ -122,7 +123,7 @@ class Supervisor {
         selectedAgent = foundAgent;
         console.log(`Supervisor: Agent execution forced to ${selectedAgent.name}`);
     } else {
-        const orchestratorResult = await orchestrator.selectAgent(effectivePrompt);
+        const orchestratorResult = await orchestrator.selectAgent(effectivePrompt, githubContext);
         selectedAgent = orchestratorResult.agent;
         console.log(`Supervisor: Orchestrator selected agent ${selectedAgent.name}. Reasoning: ${orchestratorResult.reasoning}`);
         workingMemoryService.addObservation(`Orchestrator selected ${selectedAgent.name}. Reasoning: ${orchestratorResult.reasoning}`);
@@ -332,13 +333,13 @@ class Supervisor {
 
   private async *executeAgentWithFunctionCalling(
     agent: Agent,
-    contents: Content[],
+    initialContents: Content[],
     callbacks: { setActiveView: (view: ViewName) => void; },
     runId: string = uuidv4()
   ): AgentExecuteStream {
     yield { type: 'runStart', runId, agentName: agent.name };
 
-    const history: Content[] = structuredClone(contents);
+    const history: Content[] = structuredClone(initialContents);
     const MAX_TURNS = 10;
     let currentTurn = 0;
     let aggregatedUsage: TokenUsage = {};
@@ -346,14 +347,24 @@ class Supervisor {
     
     while (currentTurn < MAX_TURNS) {
         currentTurn++;
-        const stream = agent.execute(history);
-        let functionCall: FunctionCall | null = null;
-
+        const stream = agent.execute(history, history);
+        
+        const functionCalls: FunctionCall[] = [];
+        const modelResponseTextParts: string[] = [];
+        
         for await (const chunk of stream) {
-            yield chunk;
-            if (chunk.type === 'content') finalContent += chunk.content;
-            if (chunk.type === 'functionCall') functionCall = chunk.functionCall;
-            if (chunk.type === 'thought') workingMemoryService.appendInternalMonologue(`[${agent.name}]: ${chunk.content}`);
+            yield chunk; // Pass all chunks through to the UI
+            
+            if (chunk.type === 'content') {
+                finalContent += chunk.content;
+                modelResponseTextParts.push(chunk.content);
+            }
+            if (chunk.type === 'thought') {
+                workingMemoryService.appendInternalMonologue(`[${agent.name}]: ${chunk.content}`);
+            }
+            if (chunk.type === 'functionCall' && chunk.functionCall) {
+                functionCalls.push(chunk.functionCall);
+            }
             if (chunk.type === 'usageMetadata' && chunk.usage) {
                 aggregatedUsage.promptTokenCount = (aggregatedUsage.promptTokenCount ?? 0) + (chunk.usage.promptTokenCount ?? 0);
                 aggregatedUsage.candidatesTokenCount = (aggregatedUsage.candidatesTokenCount ?? 0) + (chunk.usage.candidatesTokenCount ?? 0);
@@ -362,20 +373,34 @@ class Supervisor {
             }
         }
         
-        if (functionCall) {
-            workingMemoryService.addObservation(`Calling tool: ${functionCall.name} with args ${JSON.stringify(functionCall.args)}`);
-            const tool = availableTools[functionCall.name];
-            const result = tool ? await tool(functionCall.args, callbacks, this.apiKey) : { error: `Tool ${functionCall.name} not found.` };
-            workingMemoryService.addObservation(`Tool ${functionCall.name} returned: ${JSON.stringify(result)}`);
-            history.push({ role: 'model', parts: [{ functionCall }] });
-            history.push({ role: 'tool', parts: [{ functionResponse: { name: functionCall.name, response: result } }] });
+        if (functionCalls.length > 0) {
+            const modelResponseParts: Part[] = [];
+            if (modelResponseTextParts.length > 0) {
+                modelResponseParts.push({ text: modelResponseTextParts.join('') });
+            }
+            functionCalls.forEach(fc => modelResponseParts.push({ functionCall: fc }));
+            history.push({ role: 'model', parts: modelResponseParts });
+            
+            workingMemoryService.addObservation(`Calling tool(s): ${functionCalls.map(fc => fc.name).join(', ')}`);
+
+            // Execute all function calls in parallel
+            const toolResponses = await Promise.all(functionCalls.map(async (call) => {
+                const tool = availableTools[call.name];
+                const result = tool ? await tool(call.args, callbacks, this.apiKey) : { error: `Tool ${call.name} not found.` };
+                workingMemoryService.addObservation(`Tool ${call.name} returned: ${JSON.stringify(result)}`);
+                return { functionResponse: { name: call.name, response: result } };
+            }));
+
+            // Add all tool responses back to history for the next turn
+            history.push({ role: 'tool', parts: toolResponses });
         } else {
+            // No more function calls, the conversation turn is over.
             break;
         }
     }
     
     if (aggregatedUsage.totalTokenCount) {
-        const originalPrompt = contents[0]?.parts.map(p => 'text' in p ? p.text : '').join('\n') || '';
+        const originalPrompt = initialContents[0]?.parts.map(p => 'text' in p ? p.text : '').join('\n') || '';
         const qualityScore = this._calculateQualityScore(finalContent, agent);
         const efficiencyScore = this._calculateEfficiencyScore(originalPrompt, aggregatedUsage);
         agentPerformanceService.addRecord(agent.id, runId, originalPrompt, aggregatedUsage, efficiencyScore, qualityScore);

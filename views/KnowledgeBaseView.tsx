@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { DatabaseIcon, CloseIcon, PlusCircleIcon } from '../components/icons';
 import ViewHeader from '../components/ViewHeader';
 import { knowledgeService, IndexedSource } from '../services/knowledge.service';
@@ -12,6 +13,7 @@ import { useToast } from '../context/ToastContext';
 import { historyService } from '../services/history.service';
 import { supervisor } from '../services/supervisor';
 import { MemoryConsolidationAgent } from '../agents/MemoryConsolidationAgent';
+import { GithubContext } from '../context/GithubContext';
 
 const KnowledgeSourceItem: React.FC<{ source: IndexedSource, onRemove: (id: string) => void }> = ({ source, onRemove }) => {
     return (
@@ -32,6 +34,7 @@ const KnowledgeBaseView: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [newTextSource, setNewTextSource] = useState({ identifier: '', content: '' });
     const { toast } = useToast();
+    const { repoUrl } = useContext(GithubContext);
 
     const fetchSources = useCallback(async () => {
         setIsLoading(true);
@@ -73,7 +76,8 @@ const KnowledgeBaseView: React.FC = () => {
         try {
             const conversation = history.map(entry => `[${entry.author}]: ${entry.content}`).join('\n\n');
             const prompt = `Please summarize the key takeaways from this conversation:\n\n${conversation}`;
-            const { stream } = await supervisor.handleRequest(prompt, { fileTree: null, stagedFiles: [] }, { setActiveView: () => {} }, MemoryConsolidationAgent.id);
+            // FIX: Pass repoUrl to satisfy FullGitContext type
+            const { stream } = await supervisor.handleRequest(prompt, { repoUrl, fileTree: null, stagedFiles: [] }, { setActiveView: () => {} }, MemoryConsolidationAgent.id);
             
             let summaryJson = '';
             for await (const chunk of stream) {

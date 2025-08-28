@@ -1,6 +1,6 @@
 
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { supervisor } from '../services/supervisor';
 import { ImageRefinementAgent } from '../agents/ImageRefinementAgent';
 import { geminiService } from '../services/gemini.service';
@@ -20,6 +20,7 @@ import { cn } from '../lib/utils';
 import { useStreamingOperation } from '../hooks/useStreamingOperation';
 import { Content, Part } from '@google/genai';
 import GenerationInProgress from '../components/GenerationInProgress';
+import { GithubContext } from '../context/GithubContext';
 
 type AspectRatio = "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
 
@@ -35,6 +36,7 @@ const LogoGeneratorView: React.FC = () => {
   const [numberOfImages, setNumberOfImages] = useState(1);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
   const [refinementState, setRefinementState] = useState<RefinementState>({ isOpen: false, base64Image: null, originalPrompt: null, feedback: '' });
+  const { repoUrl } = useContext(GithubContext);
 
   const { data: generatedImages, isLoading: isGenerating, error: generationError, execute: executeGeneration, setError: setGenerationError } = useAsyncOperation(async (currentPrompt: string) => {
     if (!currentPrompt.trim()) {
@@ -55,7 +57,8 @@ const LogoGeneratorView: React.FC = () => {
     const imagePart: Part = { inlineData: { mimeType: 'image/png', data: refinementState.base64Image }};
     const textPart: Part = { text: `Original Prompt: "${refinementState.originalPrompt}"\n\nUser Feedback: "${refinementState.feedback}"`};
     const contents: Content[] = [{ role: 'user', parts: [imagePart, textPart] }];
-    return supervisor.handleRequest('', { fileTree: null, stagedFiles: [] }, { setActiveView: () => {} }, ImageRefinementAgent.id, undefined, contents);
+    // FIX: Pass repoUrl to satisfy FullGitContext type
+    return supervisor.handleRequest('', { repoUrl, fileTree: null, stagedFiles: [] }, { setActiveView: () => {} }, ImageRefinementAgent.id, undefined, contents);
   });
 
   useEffect(() => {
@@ -72,7 +75,7 @@ const LogoGeneratorView: React.FC = () => {
             console.error("Failed to parse refinement response:", e);
         }
     }
-  }, [refinementOperation.content]);
+  }, [refinementOperation.content, executeGeneration]);
 
   const handleDownloadPng = (base64Image: string, index: number) => {
     const link = document.createElement('a');

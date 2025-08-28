@@ -212,7 +212,8 @@ const CodeGraphView: React.FC = () => {
     }
 
     const prompt = "Generate a code graph for the current project structure.";
-    return supervisor.handleRequest(prompt, { fileTree, stagedFiles:[], apiKey }, { setActiveView: () => {} }, CodeGraphAgent.id);
+    // FIX: Pass repoUrl to satisfy FullGitContext type
+    return supervisor.handleRequest(prompt, { repoUrl, fileTree, stagedFiles:[], apiKey }, { setActiveView: () => {} }, CodeGraphAgent.id);
   });
 
   useEffect(() => {
@@ -235,7 +236,7 @@ const CodeGraphView: React.FC = () => {
       if (repoUrl && fileTree) {
         generateGraphOperation.execute();
       }
-  }, [repoUrl, fileTree]);
+  }, [repoUrl, fileTree, generateGraphOperation]);
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
